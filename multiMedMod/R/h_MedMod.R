@@ -1,64 +1,23 @@
 
-#' Estimation of the mediated moderation and remaining moderation
-#' @param data_in a \code{data.frame} containing the observed data.
-#'    In "data_in", column "tt" is the treatment assignment ("tt" is coded as 0 for individuals in the control condition and as 1 for individuals in the treatment condition);
-#'    column "R" is a dummy indicator of the subgroup status.
-#'    column "Y" is the outcome.
-#' @param Mnames a character vector of the names of the columns in "data_in" that correspond to mediators (M).
-#' @param Cnames a character vector of the names of the columns in "data_in" that correspond to baseline covariates (C).
-#' @param Yfamily a character specifying the link function for a generalized linear model for the outcome. Currently supported options include "gaussian" and "binomial".
-#' @param estimator a character specifying the estimator for the mediated moderation (meD) and remaining moderation (reD). Currently supported options include "onestep" and "tml", denoting the one-step estimator and targeted minimum loss estimator, respectively.
-#' @param nuisance_estimation a character vector specifying the method for estimating the nuisance models. Currently supported options include the list of functions included in the "SuperLearner" package (<https://cran.r-project.org/package=SuperLearner>; can be found with the function listWrappers() of the "SuperLearner" package).
-#' @param num_folds the number of folds used for the cross-fitting procedure.
-#' @param TotMod_dr if TRUE, then the total moderation is estimated directly, i.e., with the estimand as sum_c(E(Y|t,r,C)p(C)), instead of as sum_{c,m1,m2}(E(Y|m1,m2,t,r,C)p(m1,m2|t,r,C)p(C)).
-#'
-#' @return A data frame containing the estimates of the mediated moderation (meD) and remaining moderation (reD), as well as the total moderation (toD) and the average potential outcomes in the effect definitions. These include the average potential outcomes of each subgroup under each treatment assignment (Yt1r1, Yt1r0, Yt0r1, Yt0r0), and the average potential outcomes of the comparison subgroup if the potential mediator distribution were shifted to be the same as that of the reference subgroup (Yt1r1.Mt1r0, Yt0r1.Mt0r0). The output also includes the 0.95 confidence intervals constructed based on the asymptotic variance estimates (column names ending with "_interval.1" and "_interval.2").
-
-#'
-#'
-#' @export
-#'
-#' @examples
-#'  # data(data_in)
-#'  # data_in <- read.csv("data/data_in.csv", header = TRUE)
-#'  # Mnames <- grep("Mdat", colnames(data_in), value = T)
-#'  # Cnames <- grep("Cdat", colnames(data_in), value = T)
-#'  # out <- meDreD(
-#'  # data_in = data_in,
-#'  # Mnames = Mnames,
-#'  # Cnames = Cnames,
-#'  # nuisance_estimation = "SL.glm",
-#'  # Yfamily = "binomial",
-#'  # estimator = "onestep",
-#'  # num_folds = 5)
-
-#'
-#'
-
-
-
-# Estimating the effects --------------------------------------
+# Estimation with non-binary mediators --------------------------------------
 h.MedMod <- function(
   data_in,
-  Yname, Rname, ttname,
-  Mediators,
+  Yname, M1names, M2names, ttname, Rname,
   Cnames,
-  learners = c("SL.glm"),
+  learners,
   learners_h,
   learners_mu,
-  Yfamily = "binomial",
-  Mfamily,
-  fity.interact = F,
-  fitm.interact = F,
   num_folds = 1,
-  TotMod_dr = TRUE,
-  full.sample = FALSE,
-  no_tt = FALSE,
+  Yfamily,
+  fity.interact = FALSE,
+  fitm.interact = FALSE,
+  TotMod_dr = FALSE,
+  full.sample = TRUE,
   out_eif = FALSE
 ) {
 
-  Znames <- Mediators[[1]]
-  Mnames <- Mediators[[2]]
+  Znames <- M1names #Mediators[[1]]
+  Mnames <- M2names #Mediators[[2]]
   # add interactions among the key variables
   data_in <- data_in %>% mutate(
     Rtt = data_in[[Rname]] * data_in[[ttname]]

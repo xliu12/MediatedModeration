@@ -1,10 +1,10 @@
 Package: multiMedMod
 Type: Package
-Title: Causal Decomposition for Mediated Moderation with Multiple Mediators
+Title: Mediated Moderation with Multiple Mediators
 Version: 0.1.0
 Author: Xiao Liu
-Maintainer: Xiao Liu <xiao.liu@austin.utexas.edu>
-Description: Estimation of the mediated moderation and remaining moderation. The estimators are those described in Liu et al. (2024).
+Maintainer: Xiao Liu <xiao.liu19@outlook.com>
+Description: Conducting the mediated moderation analysis with multiple mediators. 
 Depends: R (>= 4.0.0)
 Imports:
     stats,
@@ -13,11 +13,13 @@ Imports:
     ranger,
     gam,
     glmnet,
-    lightgbm,
     xgboost,
     nnet,
     origami,
-    tidyverse
+    tidyverse,
+    glue,
+    labelled,
+    purrr
 Suggests:
     testthat,
     knitr,
