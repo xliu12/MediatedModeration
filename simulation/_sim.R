@@ -155,7 +155,7 @@ GenData <- function(
 # Simulation----------------------------
 
 condition_all <- data.frame(expand.grid(
-  n = c(200, 300, 500, 800, 1000, 2000),
+  n = c(200, 300, 500, 800, 1000),
   Mfamily = c("binomial", "gaussian"),
   Yfamily = c("gaussian", "binomial")
 ))
