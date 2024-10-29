@@ -200,7 +200,7 @@ OneData <- function(iseed = 1, cond = 1){
 
   learners <- c("SL.glm", "SL.nnet")
   num_folds <- ifelse(condition$n[cond]<=300, 5, 4)
-  num_folds <- ifelse(condition$n[cond] >= 2000, 4, 4)
+  
 
   out <- MedMod(data_in = data_in,
                 Yname = Yname,
