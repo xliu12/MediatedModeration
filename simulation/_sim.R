@@ -6,6 +6,7 @@ library(glue)
 library(SuperLearner)
 
 devtools::load_all("multiMedMod")
+source("simulation/fun_gendata.R")
 
 GenData <- function(
     sim.seed = 123,
