@@ -11,7 +11,7 @@ library(SuperLearner)
 
 
 # download the package and install
-devtools::load_all("../multiMedMod")
+devtools::load_all("multiMedMod")
 
 ## alternatively, install from github
 # devtools::install_github(repo = "xliu12/MediatedModeration", subdir = "multiMedMod", build_vignettes = TRUE)
