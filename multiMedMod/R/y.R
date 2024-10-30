@@ -1,6 +1,6 @@
 
-# conditional outcome -------------------
-# E(y|m1,m2,t,r,c) for intervened
+# conditional outcome
+# E(y|m1,m2,t,r,c)
 y.mzc <- function(data_in, varnames, Yfamily = "gaussian", interact = TRUE, folds, learners, bounded = FALSE) {
   mztr_vals <- expand.grid(m = c(0,1), z = c(0,1), tt=c(0,1), r=c(0,1))
   mtr_vals <- expand.grid(m = c(0,1), z = NA, tt=c(0,1), r=c(0,1))
@@ -71,7 +71,6 @@ y.mzc <- function(data_in, varnames, Yfamily = "gaussian", interact = TRUE, fold
         type = Yfamily, learners, "ID", bounded)
     }
 
-    # alist$fit$fitLibrary$SL.glm_All$object$coefficients
     preds <- alist$preds
     mu[folds[[v]]$validation_set, ]  <- preds
 
@@ -81,7 +80,6 @@ y.mzc <- function(data_in, varnames, Yfamily = "gaussian", interact = TRUE, fold
 }
 
 
-# E(y|t,r,c) for natural (i.e., no mediator intervention)
 y.c <- function(data_in, varnames, Yfamily = "gaussian", folds, learners, bounded = FALSE) {
 
   tr_vals <- expand.grid(tt=c(0,1), r=c(0,1))
@@ -130,7 +128,6 @@ y.c <- function(data_in, varnames, Yfamily = "gaussian", folds, learners, bounde
         ,varnames$C), varnames,
       type = Yfamily, learners, "ID", bounded)
 
-    # alist$fit$fitLibrary$SL.glm_All$object$coefficients
     preds <- alist$preds
     mu[folds[[v]]$validation_set, ]  <- preds
 
@@ -140,7 +137,7 @@ y.c <- function(data_in, varnames, Yfamily = "gaussian", folds, learners, bounde
 }
 
 
-# partially marginalized outcome ----
+# partially marginalized outcome
 
 # integrate over p(m2 | t,r**,c)
 
@@ -164,7 +161,7 @@ y.mc <- function(y_mzc, tt, r0, z_c, r1) {
 }
 
 
-# fully marginalized outcome ----
+# fully marginalized outcome
 
 # integrate over p(m1 | t,r*,c)p(m2 | t,r**,c)
 
@@ -187,62 +184,3 @@ y.c_jo <- function(y_mzc, tt, r0, mz_c, rjo) {
   y_c_jo
 }
 
-
-# ...........--------------------------------------------
-# no_tt = TRUE ----------------------------------
-y.c_t0 <- function(data_in, varnames, Yfamily = "gaussian", folds, learners, bounded = FALSE) {
-
-  tr_vals <- expand.grid(tt=c(0), r=c(0,1))
-  NA_vals <- expand.grid(tt=NA, r=NA)
-
-  namevec <- c(glue("mu(t{tr_vals$tt},r{tr_vals$r},c)"),
-               glue("mu(T,R,c)")
-  )
-
-  mu <- matrix(nrow = nrow(data_in), ncol = length(namevec))
-  colnames(mu) <- namevec
-  vals <- do.call(rbind, list(tr_vals, NA_vals))
-
-  v <- 1
-  for (v in seq_along(folds)) {
-    train <- origami::training(data_in, folds[[v]])
-    valid <- origami::validation(data_in, folds[[v]])
-
-    valid_list <- lapply(1:nrow(vals), function(jj=1) {
-      valid_v <- valid
-      if ( !is.na(vals$r[jj]) ) { valid_v[, c(varnames$R)] <- vals$r[jj] }
-      if ( !is.na(vals$tt[jj]) ) { valid_v[, c(varnames$tt)] <- vals$tt[jj] }
-
-      # update the interactions
-      # two-way
-      valid_v[, c(varnames$Rtt)] <- valid_v[, c(varnames$R)]*valid_v[, c(varnames$tt)]
-      valid_v[, c(varnames$RM)] <- valid_v[, c(varnames$R)]*valid_v[, c(varnames$M)]
-      valid_v[, c(varnames$ttM)] <- valid_v[, c(varnames$tt)]*valid_v[, c(varnames$M)]
-      valid_v[, c(varnames$RZ)] <- valid_v[, c(varnames$R)]*valid_v[, c(varnames$Z)]
-      valid_v[, c(varnames$ttZ)] <- valid_v[, c(varnames$tt)]*valid_v[, c(varnames$Z)]
-      valid_v[, c(varnames$MZ)] <- valid_v[, c(varnames$M)]*valid_v[, c(varnames$Z)]
-      # three-way and four-way
-      valid_v[, c(varnames$ttRM)] <- valid_v[, c(varnames$R)]*valid_v[, c(varnames$tt)]*valid_v[, c(varnames$M)]
-      valid_v[, c(varnames$ttRZ)] <- valid_v[, c(varnames$tt)]*valid_v[, c(varnames$R)]*valid_v[, c(varnames$Z)]
-      valid_v[, c(varnames$ttMZ)] <- valid_v[, c(varnames$tt)]*valid_v[, c(varnames$M)]*valid_v[, c(varnames$Z)]
-      valid_v[, c(varnames$RMZ)] <- valid_v[, c(varnames$R)]*valid_v[, c(varnames$M)]*valid_v[, c(varnames$Z)]
-      valid_v[, c(varnames$ttRMZ)] <- valid_v[, c(varnames$tt)]*valid_v[, c(varnames$R)]*valid_v[, c(varnames$M)]*valid_v[, c(varnames$Z)]
-      valid_v
-    })
-
-
-    alist <- crossfit(
-      train, valid_list,
-      varnames$Y,
-      c(varnames$R
-        ,varnames$C), varnames,
-      type = Yfamily, learners, "ID", bounded)
-
-    # alist$fit$fitLibrary$SL.glm_All$object$coefficients
-    preds <- alist$preds
-    mu[folds[[v]]$validation_set, ]  <- preds
-
-  }
-  y_c <- mu
-  y_c
-}

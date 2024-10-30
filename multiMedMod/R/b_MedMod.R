@@ -17,7 +17,6 @@ b.MedMod <- function(
 
   Znames <- M1names #Mediators[[1]]
   Mnames <- M2names #Mediators[[2]]
-  # add interactions among the key variables
   data_in <- data_in %>% mutate(
     Rtt = data_in[[Rname]] * data_in[[ttname]],
     ttM = data_in[[ttname]] * data_in[, Mnames],
@@ -37,11 +36,6 @@ b.MedMod <- function(
   )
   data_in <- do.call(data.frame, data_in)
 
-  # ttMnames <- paste0("ttM.", Mnames)
-  # RMnames <- paste0("RM.", Mnames)
-  # ttRMnames <- paste0("ttRM.", Mnames)
-  # colnames(data_in)[(ncol(data_in)+1-3*length(Mnames)): ncol(data_in)] <- c(ttMnames, RMnames, ttRMnames)
-
   varnames <- list("R" = Rname, "tt" = ttname, "M" = Mnames, "Y" = Yname,
                    "Z" = Znames, "C" = Cnames,
                    "Rtt" = paste0("Rtt"), "RM" = paste0("RM"), "ttM" = paste0("ttM"), "ttRM" = paste0("ttRM"),
@@ -52,7 +46,7 @@ b.MedMod <- function(
   if (num_folds==1) { folds[[1]]$training_set <- folds[[1]]$validation_set }
 
 
-  r_c <- r.c(data_in, varnames, folds, learners, bounded = TRUE) # alternatively later in the denominator
+  r_c <- r.c(data_in, varnames, folds, learners, bounded = TRUE)
   t_rc <- t.rc(data_in, varnames, folds, learners, bounded = TRUE)
   tr_c <- tr.c(r_c, t_rc)
 
@@ -75,7 +69,6 @@ b.MedMod <- function(
     expand.grid(tt = c(0, 1), r0 = c(1), r1 = NA, r2 = NA, rjo = c(0,1)),
     expand.grid(tt = c(0, 1), r0 = c(0), r1 = NA, r2 = NA, rjo = c(0))
   )
-  # theta(tt,1,1) = delta(tt, 1)
 
   theta <- eif <- reg <- rmpw <- list()
 
@@ -108,9 +101,6 @@ b.MedMod <- function(
       # fully marginalized outcome over p(M1|t,r1,c)p(M2|t,r2,c)
       y_c_12 <- y.c_12(y_mzc, tt, r0, z_c, r1, m_c, r2)
 
-      # fot the effect via M1 or M2 alone
-      # h_M1M2 <- p_M1 * p_M2 / p_Mjo
-      # eify <- ipw_y*h_M1M2 / mean(ipw_y*h_M1M2) * (Y - mu)
 
       rm1m2ipw_y <- 1*(TT==tt)*(R==r0)*(p_M1 * p_M2) / bound(tr_c[, glue("p(t{tt},r{r0}|c)")]*p_Mjo)
       eify <- rm1m2ipw_y / mean(rm1m2ipw_y) * (Y - mu)
@@ -121,7 +111,6 @@ b.MedMod <- function(
       ipw_m2 <- 1*(TT==tt)*(R==r2) / bound(tr_c[, glue("p(t{tt},r{r2}|c)")])
       eifm2 <- ipw_m2 / mean(ipw_m2) * (y_m2c - y_c_12)
 
-      # eif with marginal mediator distributions
       eif_mar <- eify + eifm1 + eifm2 + y_c_12
 
       eif[[ glue("theta(t{tt},r{r0},r{r1},r{r2})") ]] <- eif_mar
@@ -140,19 +129,15 @@ b.MedMod <- function(
 
       y_c_jo <- y.c_jo(y_mzc, tt, r0, mz_c, rjo)
 
-      # h_Mjo <- p_Mjo_rjo / p_Mjo
-      # eify_ajo <- ipw_y*h_Mjo / mean(ipw_y*h_Mjo) * (Y - mu)
       rmjo_ipw_y <- 1*(TT==tt)*(R==r0)*(p_Mjo_rjo) / bound(tr_c[, glue("p(t{tt},r{r0}|c)")]*p_Mjo)
       eify_ajo <- rmjo_ipw_y / mean(rmjo_ipw_y) * (Y - mu)
 
-      # fixing R = r0 for the outcome theta(tt,r0,rjo)
       y_m1m2c_r0 <- y_mzc[, glue("mu(Z,M,t{tt},r{r0},c)")]
 
       ipw_m1m2 <- 1*(TT==tt)*(R==rjo) / bound(tr_c[, glue("p(t{tt},r{rjo}|c)")])
 
       eifm1m2 <- ipw_m1m2 / mean(ipw_m1m2) * (y_m1m2c_r0 - y_c_jo)
 
-      # eif with the joint mediator distribution
       eif_jo <- eify_ajo + eifm1m2 + y_c_jo
 
       eif[[ glue("theta(t{tt},r{r0},rjo{rjo})") ]] <- eif_jo
@@ -161,8 +146,7 @@ b.MedMod <- function(
       rmpw[[ glue("theta(t{tt},r{r0},rjo{rjo})")  ]] <- mean( rmjo_ipw_y / mean(rmjo_ipw_y) * (Y) )
       reg[[ glue("theta(t{tt},r{r0},rjo{rjo})")  ]] <- mean( y_c_jo )
 
-      ## when r0=rjo, ----
-      # can also direct estimating E[E(Y|t,r,c)p(c)] without mediator intervention
+      ## when r0=rjo,
       if(r0==rjo) {
         if(TotMod_dr==TRUE) {
           y_c <- y.c(data_in, varnames, Yfamily = Yfamily, folds, learners, bounded = FALSE)
@@ -259,40 +243,7 @@ effect <- function(theta) {
   })
 
 
-  # theta$`MedMod_M1`+theta$`MedMod_M2`+theta$`MedMod_mu` - theta$`MedMod_jo`
 
   theta
 }
 
-
-effect_nott <- function(theta) {
-
-  theta$`Tot`  <- with(theta, {
-    `delta(t0,r1)`-`delta(t0,r0)`
-  })
-  # the (remaining) moderated treatment effect while fixing the joint mediator distribution at the reference subgroup; or, the treatment effect on the IDE of the subgroup
-  theta$`RemainMod` <- with(theta, {
-    `theta(t0,r1,rjo0)` - `delta(t0,r0)`
-  })
-  # the (joint mediated) moderated treatment effect mediated by the difference in  the (joint distribution of) potential mediators between subgroups; or, the treatment effect on the IIE_jo of the subgroup
-  theta$`MedMod_jo`  <- with(theta, {
-    `delta(t0,r1)` - `theta(t0,r1,rjo0)`
-  })
-  # the (mediated) moderated treatment effect mediated by the difference in the (marginal distribution of) potential mediator M1 between subgroups; or, the treatment effect on the IIE_M1 of the subgroup
-  theta$`MedMod_M1`  <- with(theta, {
-    `theta(t0,r1,r1,r0)` - `theta(t0,r1,r0,r0)`
-  })
-  # the (mediated) moderated treatment effect mediated by the difference in the (marginal distribution of) potential mediator M2 between subgroups; or, the treatment effect on the IIE_M2 of the subgroup
-  theta$`MedMod_M2`  <- with(theta, {
-    `theta(t0,r1,r1,r1)` - `theta(t0,r1,r1,r0)`
-  })
-  # the (mediated) moderated treatment effect mediated by the difference in the mutual dependence of potential mediators M1 and M2 between subgroups; or, the treatment effect on the IIE_mu of the subgroup
-  theta$`MedMod_mu`  <- with(theta, {
-    (`delta(t0,r1)`-`theta(t0,r1,rjo0)`-`theta(t0,r1,r1,r1)`+`theta(t0,r1,r0,r0)`)
-  })
-
-
-  # theta$`MedMod_M1`+theta$`MedMod_M2`+theta$`MedMod_mu` - theta$`MedMod_jo`
-
-  theta
-}

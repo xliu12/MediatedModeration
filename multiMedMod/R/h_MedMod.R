@@ -18,7 +18,6 @@ h.MedMod <- function(
 
   Znames <- M1names #Mediators[[1]]
   Mnames <- M2names #Mediators[[2]]
-  # add interactions among the key variables
   data_in <- data_in %>% mutate(
     Rtt = data_in[[Rname]] * data_in[[ttname]]
     , ttM = data_in[[ttname]] * data_in[, Mnames],
@@ -38,10 +37,6 @@ h.MedMod <- function(
   )
   data_in <- do.call(data.frame, data_in)
 
-  # ttMnames <- paste0("ttM.", Mnames)
-  # RMnames <- paste0("RM.", Mnames)
-  # ttRMnames <- paste0("ttRM.", Mnames)
-  # colnames(data_in)[(ncol(data_in)+1-3*length(Mnames)): ncol(data_in)] <- c(ttMnames, RMnames, ttRMnames)
 
   varnames <- list("R" = Rname, "tt" = ttname, "M" = Mnames, "Y" = Yname,
                    "Z" = Znames, "C" = Cnames,
@@ -53,28 +48,18 @@ h.MedMod <- function(
   if (num_folds==1) { folds[[1]]$training_set <- folds[[1]]$validation_set }
 
 
-  r_c <- r.c(data_in, varnames, folds, learners, bounded = TRUE) # later in the denominator
+  r_c <- r.c(data_in, varnames, folds, learners, bounded = TRUE)
   t_rc <- t.rc(data_in, varnames, folds, learners, bounded = TRUE)
   tr_c <- tr.c(r_c, t_rc)
 
-  # r_tc <- r.tc(data_in, varnames, folds, learners, bounded = TRUE)
   r_ztc <- r.ztc(data_in, varnames, fitm.interact, folds, learners, bounded = TRUE)
   r_mtc <- r.mtc(data_in, varnames, fitm.interact, folds, learners, bounded = TRUE)
   r_zmtc <- r.zmtc(data_in, varnames, fitm.interact, folds, learners, bounded = TRUE)
 
   h_zm <- h.zm(data_in, varnames, Mfamily, fitm.interact, folds, learners_h, bounded = TRUE)
 
-  # y_mzc <- y.mzc(data_in, varnames, Yfamily = Yfamily, interact = fity.interact, folds, learners, bounded = FALSE) # the same as y.mzc() used with zm.R
   mu_mzc <- mu.mzc(r=NA, tt=NA, data_in, varnames, Yfamily = Yfamily, fity.interact, folds, learners, bounded = FALSE, full.sample = TRUE)
 
-  # tr_vals <- expand.grid(tt=c(0,1), r=c(0,1))
-  # mu_mzc <- matrix(nrow = nrow(data_in), ncol = nrow(tr_vals))
-  # colnames(mu_mzc) <- (glue("mu(t{tr_vals$tt},r{tr_vals$r},m,z,c)"))
-  # for (jj in 1:nrow(tr_vals)) {
-  #   tt <- tr_vals$tt[jj]
-  #   r <- tr_vals$r[jj]
-  #   mu_mzc[, glue("mu(t{tt},r{r},m,z,c)")] <- mu.mzc(r, tt, data_in, varnames, Yfamily = "gaussian", folds, learners, bounded = FALSE, full.sample = FALSE)
-  # }
 
   TT <- data_in[[varnames$tt]]
   R <- data_in[[varnames$R]]
@@ -88,7 +73,6 @@ h.MedMod <- function(
     expand.grid(tt = c(0, 1), r0 = c(1), r1 = NA, r2 = NA, rjo = c(0,1)),
     expand.grid(tt = c(0, 1), r0 = c(0), r1 = NA, r2 = NA, rjo = c(0))
   )
-  # theta(tt,1,1) = delta(tt, 1)
 
   theta <- eif <- reg <- rmpw <- list()
 
@@ -102,24 +86,9 @@ h.MedMod <- function(
     rjo <- vals$rjo[j]
 
     mu <- mu_mzc[, glue("mu(t{tt},r{r0},m,z,c)")]
-    # mu_mzc <- mu.mzc(r0, tt, data_in, varnames, Yfamily = Yfamily, folds, learners, bounded = FALSE, full.sample = full.sample)
-    # mu <- mu_mzc
-
     ipw_y <- 1*(TT==tt)*(R==r0) / bound(tr_c[, glue("p(t{tt},r{r0}|c)")])
 
-    # mu <- y_mzc[, glue("mu(Z,M,T,R,c)")]
-    # observed (joint) mediator distribution
-    # p_Mjo <- (M==1)*(Z==1)*mz_c[, glue("mz(m1,z1|t{tt},r{r0},c)")] +
-    #   (M==0)*(Z==1)*mz_c[, glue("mz(m0,z1|t{tt},r{r0},c)")] +
-    #   (M==1)*(Z==0)*mz_c[, glue("mz(m1,z0|t{tt},r{r0},c)")] +
-    #   (M==0)*(Z==0)*mz_c[, glue("mz(m0,z0|t{tt},r{r0},c)")]
-
     if (!is.na(r1)) {
-      # intervened mediator distribution
-
-      # h_zstar_mstarstar <- h.zstar.mstarstar(r0, r1, r2, tt, h_zm, r_tc, r_mtc, r_ztc)
-      # h_zstar <- h.zstar.mstarstar(r0, rstar=r1, r0, tt, h_zm, r_tc, r_mtc, r_ztc)
-      # h_mstarstar <- h.zstar.mstarstar(r0, r0, rstarstar=r2, tt, h_zm, r_tc, r_mtc, r_ztc)
 
       h_zstar_mstarstar <- h.zstar.mstarstar(r0, r1, r2, tt, h_zm, tr_c, r_mtc, r_ztc)
       h_zstar <- h.zstar.mstarstar(r0, rstar=r1, r0, tt, h_zm, tr_c, r_mtc, r_ztc)
@@ -130,32 +99,17 @@ h.MedMod <- function(
 
       muMZ_c <- muMZ.c(rstar=r1, tt, muM_zc, data_in, varnames, folds, learners_mu, bounded = FALSE, full.sample = full.sample)
       muZM_c <- muZM.c(rstarstar=r2, tt, muZ_mc, data_in, varnames, folds, learners_mu, bounded = FALSE, full.sample = full.sample)
-      # muMZ_c <- muZM_c
-      # partially marginalized outcome over p(M2|t,r2,c) (so dependent on M1)
-      # y_m1c <- y.zc(y_mzc, tt, r0, m_c, r2)
-      # partially marginalized outcome over p(M1|t,r1,c) (so dependent on M2)
-      # y_m2c <- y.mc(y_mzc, tt, r0, z_c, r1)
-      # fully marginalized outcome over p(M1|t,r1,c)p(M2|t,r2,c)
-      # y_c_12 <- y.c_12(y_mzc, tt, r0, z_c, r1, m_c, r2)
 
-      # fot the effect via M1 or M2 alone
-      # h_M1M2 <- p_M1 * p_M2 / p_Mjo
-      # eify <- ipw_y*h_M1M2 / mean(ipw_y*h_M1M2) * (Y - mu)
-
-      # rm1m2ipw_y <- 1*(TT==tt)*(R==r0)*(p_M1 * p_M2) / bound(tr_c[, glue("p(t{tt},r{r0}|c)")]*p_Mjo)
       rm1m2ipw_y <- 1*(TT==tt)*(R==r0)* ipw_y * h_zstar_mstarstar
       eify <- rm1m2ipw_y * (Y - mu)  / mean(rm1m2ipw_y)
 
       ipw_m1 <- 1*(TT==tt)*(R==r1) / bound(tr_c[, glue("p(t{tt},r{r1}|c)")])
-      # eifm1 <- ipw_m1 * (y_m1c - y_c_12) / mean(ipw_m1)
       eifm1 <- ipw_m1 * (muM_zc - muMZ_c) / mean(ipw_m1)
 
       ipw_m2 <- 1*(TT==tt)*(R==r2) / bound(tr_c[, glue("p(t{tt},r{r2}|c)")])
-      # eifm2 <- ipw_m2 * (y_m2c - y_c_12) / mean(ipw_m2)
       eifm2 <- ipw_m2 * (muZ_mc - muZM_c) / mean(ipw_m2)
 
-      # eif with marginal mediator distributions
-      eif_mar <- eify + eifm1 + eifm2 + muZM_c #(muZM_c+muMZ_c)/2
+      eif_mar <- eify + eifm1 + eifm2 + muZM_c
 
       eif[[ glue("theta(t{tt},r{r0},r{r1},r{r2})") ]] <- eif_mar
       theta[[ glue("theta(t{tt},r{r0},r{r1},r{r2})") ]] <- mean(eif_mar)
@@ -166,34 +120,17 @@ h.MedMod <- function(
     }
 
     if (!is.na(rjo)) {
-      # p_Mjo_rjo <- (M==1)*(Z==1)*mz_c[, glue("mz(m1,z1|t{tt},r{rjo},c)")] +
-      #   (M==0)*(Z==1)*mz_c[, glue("mz(m0,z1|t{tt},r{rjo},c)")] +
-      #   (M==1)*(Z==0)*mz_c[, glue("mz(m1,z0|t{tt},r{rjo},c)")] +
-      #   (M==0)*(Z==0)*mz_c[, glue("mz(m0,z0|t{tt},r{rjo},c)")]
 
-      # h_zm_joint <- h.zm.joint(r0, rstar=rjo, tt, r_tc, r_zmtc)
       h_zm_joint <- h.zm.joint(r0, rstar=rjo, tt, tr_c, r_zmtc)
       mu_joint_c <- mu.joint.c(r0, rstar=rjo, tt, mu_mzc, data_in, varnames, folds, learners, bounded = FALSE, full.sample = full.sample)
-      # y_c_jo <- y.c_jo(y_mzc, tt, r0, mz_c, rjo)
 
-      # h_Mjo <- p_Mjo_rjo / p_Mjo
-      # eify_ajo <- ipw_y*h_Mjo / mean(ipw_y*h_Mjo) * (Y - mu)
-      # rmjo_ipw_y <- 1*(TT==tt)*(R==r0)*(p_Mjo_rjo) / bound(tr_c[, glue("p(t{tt},r{r0}|c)")]*p_Mjo)
       rmjo_ipw_y <- 1*(TT==tt)*(R==r0) * ipw_y * h_zm_joint
       eify_ajo <- rmjo_ipw_y * (Y - mu) / mean(rmjo_ipw_y)
 
-      # fixing R = r0 for the outcome theta(tt,r0,rjo)
-      # y_m1m2c_r0 <- y_mzc[, glue("mu(Z,M,t{tt},r{r0},c)")]
-
-      # already run mu above
-      # mu <- mu_mzc[, glue("mu(t{tt},r{r0},m,z,c)")]
-
       ipw_m1m2 <- 1*(TT==tt)*(R==rjo) / bound(tr_c[, glue("p(t{tt},r{rjo}|c)")])
 
-      # eifm1m2 <- ipw_m1m2 * (y_m1m2c_r0 - y_c_jo) / mean(ipw_m1m2)
       eifm1m2 <- ipw_m1m2 * (mu - mu_joint_c) / mean(ipw_m1m2)
 
-      # eif with the joint mediator distribution
       eif_jo <- eify_ajo + eifm1m2 + mu_joint_c
 
       eif[[ glue("theta(t{tt},r{r0},rjo{rjo})") ]] <- eif_jo
@@ -202,13 +139,11 @@ h.MedMod <- function(
       rmpw[[ glue("theta(t{tt},r{r0},rjo{rjo})")  ]] <- mean( rmjo_ipw_y / mean(rmjo_ipw_y) * (Y) )
       reg[[ glue("theta(t{tt},r{r0},rjo{rjo})")  ]] <- mean( mu_joint_c )
 
-      ## when r0=rjo, ----
-      # can also direct estimating E[E(Y|t,r,c)p(c)] without mediator intervention
+      ## when r0=rjo,
       if(r0==rjo) {
         if(TotMod_dr==TRUE) {
           y_c <- y.c(data_in, varnames, Yfamily = Yfamily, folds, learners, bounded = FALSE)
           mu_c <- y_c[, glue("mu(t{tt},r{r0},c)")]
-          # ipw_y <- 1*(TT==tt)*(R==r0) / (tr_c[, glue("p(t{tt},r{r0}|c)")])
 
           eify_c <- ipw_y / mean(ipw_y) * (Y - mu_c) + mu_c
 
@@ -229,7 +164,6 @@ h.MedMod <- function(
     }
   }
 
-  # multiply-robust
   eifs_effs <- effect(eif)
   thetas_effs <- sapply(eifs_effs, mean)
   se_effs <- sapply(eifs_effs, function(s) {

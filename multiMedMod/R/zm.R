@@ -1,4 +1,4 @@
-# Mediators (Z, M) --------------
+# Mediators (Z, M)
 z.c <- function(data_in, varnames, interact = TRUE, folds, learners, bounded = FALSE) {
   ztr_vals <- expand.grid(z = c(0,1), tt=c(0,1), r=c(0,1))
   z_c <- matrix(nrow = nrow(data_in), ncol = nrow(ztr_vals))
@@ -112,7 +112,7 @@ m.zc <- function(data_in, varnames, interact = TRUE, folds, learners, bounded = 
   m_zc
 }
 
-# p(m,z|t,r,c) joint mediator distribution ----
+# p(m,z|t,r,c) joint mediator distribution
 mz.c <- function(z_c, m_zc) {
   mztr_vals <- expand.grid(m = c(0,1), z = c(0,1), tt=c(0,1), r=c(0,1))
   mz_c <- matrix(nrow = nrow(z_c), ncol = nrow(mztr_vals))
@@ -129,7 +129,7 @@ mz.c <- function(z_c, m_zc) {
 
   mz_c
 }
-# p(m|t,r,c) marginal mediator distribution ----
+# p(m|t,r,c) marginal mediator distribution
 m.c <- function(mz_c) {
   mtr_vals <- expand.grid(m=c(0,1),tt=c(0,1), r=c(0,1))
   m_c <- matrix(nrow = nrow(mz_c), ncol = nrow(mtr_vals))

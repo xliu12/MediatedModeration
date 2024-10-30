@@ -54,6 +54,7 @@ MedMod <- function(
     }
   }
 
+  out_eif <- FALSE
   if (Mfamily=="b") {
     out <- b.MedMod(
       data_in = data_in,
@@ -69,7 +70,7 @@ MedMod <- function(
       fity.interact = TRUE,
       fitm.interact = TRUE,
       TotMod_dr = FALSE,
-      out_eif = FALSE
+      out_eif = out_eif
     )
   }
 
@@ -91,13 +92,23 @@ MedMod <- function(
       fitm.interact = FALSE,
       TotMod_dr = FALSE,
       full.sample = TRUE,
-      out_eif = FALSE
+      out_eif = out_eif
     )
   }
 
-  out1 <- data.frame(out) %>%
-    rownames_to_column(var = "Estimand") %>%
-    rename(Estimate=est_multi, SE=se_multi,
-           `95% CI.lower`=ci1_multi, `95% CI.upper`=ci2_multi)
-  out1
+  if (out_eif == TRUE) {
+    out$estimates <- data.frame(out$estimates) %>%
+      rownames_to_column(var = "Estimand") %>%
+      rename(Estimate=est_multi, SE=se_multi,
+             `95% CI.lower`=ci1_multi, `95% CI.upper`=ci2_multi) %>%
+      select(!c(est_rmpw,est_reg))
+  }
+  if (out_eif == FALSE) {
+    out <- data.frame(out) %>%
+      rownames_to_column(var = "Estimand") %>%
+      rename(Estimate=est_multi, SE=se_multi,
+             `95% CI.lower`=ci1_multi, `95% CI.upper`=ci2_multi) %>%
+      select(!c(est_rmpw,est_reg))
+  }
+  out
 }
