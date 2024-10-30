@@ -23,7 +23,7 @@ devtools::load_all("multiMedMod")
 
 # Load data ----
 
-load("example_data.RData")
+load("example/example_data.RData")
 
 
 data_in$ID <- 1:nrow(data_in)
