@@ -192,8 +192,8 @@ b.MedMod <- function(
     se_multi = se_effs,
     ci1_multi = ci_effs[1, ],
     ci2_multi = ci_effs[2, ]
-    # ,est_reg = regs_effs,
-    # est_rmpw = rmpw_effs
+    ,est_reg = regs_effs,
+    est_rmpw = rmpw_effs
     )
 
   if (out_eif == TRUE) {
