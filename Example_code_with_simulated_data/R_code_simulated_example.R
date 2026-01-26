@@ -1,0 +1,199 @@
+
+#### R Code for Running the Mediated-Moderation Analysis with Two Mediators ####
+library(tidyverse)
+library(glue)
+library(origami)
+library(mvtnorm)
+library(SuperLearner)
+library(ranger)
+library(gam)
+library(nnet)
+
+# Import data
+data <- read.csv("../Simulation_Demo/data_two_mediators.csv")
+
+devtools::load_all()
+# run ----------
+out <- MedMod::MedMod(data = data,
+              outcome = "Outcome",
+              mediators = c("M1", "M2"),
+              treatment = "Intervention",
+              subgroup = "Male",
+              covariates = c("C.1", "C.2", "C.3"),
+              learners = c("SL.glm"),
+              num_folds = 5,
+              ci.level = 0.95)
+
+
+
+# Plot ----
+
+# est_tab %>% write_csv(., file = "Tables_Figs/lift_est_tab.csv")
+# theme ggplot -------------------
+fig.theme <-
+  theme_bw() +
+  theme(panel.grid.minor = element_line(linewidth = 0),
+        panel.grid.major.x = element_line(linewidth = 0),
+        panel.grid.major.y = element_line(linewidth = 0.5, lineend = "round", color = "grey", linetype = "longdash"),
+        # axis.text.x = element_text(angle = 0, vjust = 0, hjust = 0),
+        plot.title = element_text(size = 12, face = "plain"),
+        axis.text.x = element_text(size = 13),
+        axis.text.y = element_text(size = 12),
+        axis.title.y = element_text(size = 13),
+        axis.title.x = element_text(size = 13),
+        strip.text.x = element_text(size = 13),
+        strip.text.y = element_text(size = 13),
+        legend.text = element_text(size = 13),
+        legend.title = element_text(size = 13),
+        legend.direction = "vertical",
+        legend.box = "vertical",
+        legend.position = "bottom",
+        legend.spacing.x = unit(0.2, "mm"),
+        legend.key.height = unit(10, "mm"),
+        legend.key.width = unit(10, "mm"),
+        legend.key.size = unit(10, "mm"))
+
+
+# Bars of thetas -------------------
+
+
+# plotdf_Rfe <- tab_Rfe %>%
+plotdf_Rmale <- estimates1_lift %>%
+  select(estimand, est_multi, ci1_multi, ci2_multi) %>%
+  filter(
+    str_detect(estimand, "theta")
+    # effect %in% c("Yt1r1","Yt1r0","Yt0r1","Yt0r0", "Yt1r1.Mt1r0", "Yt0r1.Mt0r0")
+  ) %>%
+  mutate(
+    numtype = case_when(
+      estimand %in% c(glue("theta(t{c(0,1)},r1,rjo1)"), glue("theta(t{c(0,1)},r0,rjo0)")) ~ 1 ,
+      estimand %in% c(glue("theta(t{c(0,1)},r1,r1,r1)")) ~ 2,
+      estimand %in% c(glue("theta(t{c(0,1)},r1,r1,r0)")) ~ 3 ,
+      estimand %in% c(glue("theta(t{c(0,1)},r1,r0,r0)")) ~ 4 ,
+      estimand %in% c(glue("theta(t{c(0,1)},r1,rjo0)")) ~ 5
+    ),
+    type = factor(numtype, levels = c(1:5), labels = c(
+      "Existing condition", #1
+      "Adapted condition: Mediators M1 and M2 were independent given baseline covariates", #2
+      "Adapted condition: M2 were matched to the reference subgroup with similar baseline covariates, while M1 were that of the comparison subgroup", #3
+      "Adapted condition: M1 and M2 were independently matched to the reference subgroup with similar baseline covariates",
+      "Adapted condition: M1 and M2 were jointly matched to the reference subgroup with similar baseline covariates"
+    )),
+    subgroup = case_when(
+      substr(estimand, 10,11) == "r1" ~ "boys (comparison)",
+      substr(estimand, 10,11) == "r0" ~ "girls (reference)"
+    ),
+    `Treatment assignment` = factor(ifelse(str_detect(estimand, "t1"), "Intervention Condition", "Control Condition"))
+  )
+
+
+
+## M_joint -------------------------
+
+fig_male_joint <- plotdf_Rmale %>%
+  filter(numtype %in% c(1, 5)) %>%
+  mutate(type = factor(numtype, levels = c(1,5), labels = c(
+    "Existing condition",
+    "Adapted condition: M1 and M2 were jointly matched to the reference subgroup with similar baseline covariates"
+  ))) %>%
+  ggplot(aes(y = est_multi, x = subgroup,
+             # pattern = type #, color = type
+             , fill = type
+  ) ) +
+  # geom_bar_pattern(
+  #   aes(linetype = type, fill = type),
+  #   # fill = "white",
+  #   # pattern_fill = "black",
+  #   pattern_angle = 45,
+  #   # pattern_density = 0.05,
+  #   pattern_spacing = 0.1,
+  #   pattern_key_scale_factor = 0.3,
+  #   alpha = 0.4, stat = "identity",
+  #   color = "black",
+  #   linewidth =0.4,
+  #   position = position_dodge()) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  # geom_point( aes(shape = type) ) +
+  geom_errorbar( aes(ymax = ci2_multi, ymin = ci1_multi
+                     ,linetype = type
+  ),
+  position = position_jitterdodge(jitter.width = 0, jitter.height = 0, dodge.width = 0.9), #"dodge",
+  width = 0.4, linewidth =0.6 ) +
+  scale_y_continuous("Estimated risk of later tobacco use (Y)", breaks = seq(0.2,0.9,0.2)) +
+  coord_cartesian(ylim = c(0.2, 0.9)) +
+  # scale_x_discrete("Treatment assignment in grade 5") +
+  scale_x_discrete("Subgroup") +
+  # ggtitle("Tobacco use (Y)") +
+  # annotate("text", x = 0.1, y = 0.95, label = "The results were adjusted for observed baseline covariates.") +
+  scale_fill_manual("Mediator", values = scales::hue_pal()(5)[c(1,2)]) +
+  scale_linetype_discrete("Mediator") + # scales::show_col(scales::hue_pal()(5)) # R default plotting colors
+  scale_color_manual("Mediator", values = scales::hue_pal()(5)[c(1,2)]) +
+  scale_linetype_discrete("Mediator") +
+  # scale_pattern_discrete("Mediator")+
+  facet_grid(. ~ `Treatment assignment`, labeller = label_value) +
+  fig.theme +
+  theme(
+    legend.text = element_text(size = 18),
+    strip.text = element_text(size = 18),
+    axis.text.x = element_text(size = 17),
+    axis.title.y = element_text(size = 17),
+    legend.title = element_text(size = 20)
+  )
+
+fig_male_joint
+
+ggsave("Tables_Figs/fig_lift_Mjoint.pdf",width = 13, height = 9)
+
+## M1 and M2 ------------------------
+
+# fig_female <- ggplot(data = plotdf_Rfe,
+fig_male <- plotdf_Rmale %>%
+  filter(numtype %in% c(1:4)) %>%
+  ggplot(aes(y = est_multi, x = subgroup,
+             # pattern = type #, color = type
+             , fill = type
+  ) ) +
+  # geom_bar_pattern(
+  #   aes(linetype = type, fill = type),
+  #   # fill = "white",
+  #   # pattern_fill = "black",
+  #   pattern_angle = 45,
+  #   # pattern_density = 0.05,
+  #   pattern_spacing = 0.1,
+  #   pattern_key_scale_factor = 0.3,
+  #   alpha = 0.4, stat = "identity",
+  #   color = "black",
+  #   linewidth =0.4,
+  #   position = position_dodge()) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  # geom_point( aes(shape = type) ) +
+  geom_errorbar( aes(ymax = ci2_multi, ymin = ci1_multi
+                     ,linetype = type
+  ),
+  position = position_jitterdodge(jitter.width = 0, jitter.height = 0, dodge.width = 0.9), #"dodge",
+  width = 0.4, linewidth =0.6 ) +
+  scale_y_continuous("Estimated risk of later tobacco use (Y)", breaks = seq(0.2,0.9,0.2)) +
+  coord_cartesian(ylim = c(0.2, 0.9)) +
+  # scale_x_discrete("Treatment assignment in grade 5") +
+  scale_x_discrete("Subgroup") +
+  # ggtitle("Tobacco use (Y)") +
+  # annotate("text", x = 0.1, y = 0.95, label = "The results were adjusted for observed baseline covariates.") +
+  scale_color_manual("Mediators (M1, M2)", values = scales::hue_pal()(5)[c(1,3,4,5)]) +
+  scale_fill_manual("Mediators (M1, M2)", values = scales::hue_pal()(5)[c(1,3,4,5)]) +
+  scale_linetype_discrete("Mediators (M1, M2)") +
+  # scale_pattern_discrete("Mediators (M1, M2)")+
+  facet_grid(. ~ `Treatment assignment`, labeller = label_value) +
+  fig.theme +
+  theme(
+    legend.text = element_text(size = 18),
+    strip.text = element_text(size = 18),
+    axis.text.x = element_text(size = 17),
+    axis.title.y = element_text(size = 17),
+    legend.title = element_text(size = 20)
+  )
+
+
+fig_male
+
+# dir()
+ggsave("Tables_Figs/fig_Rboy_M1pcr8_M2dvp8.pdf", width = 18, height = 9)
