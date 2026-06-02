@@ -19,7 +19,7 @@ library(ranger)
 library(nnet)
 
 # Import data. Edit the file path from which the data are to be read from
-data <- read.csv("../Simulation_Demo/Example_code_with_simulated_data/simulated_dataset.csv")
+data <- read.csv("Simulation_Demo/Example_code_with_simulated_data/simulated_dataset.csv")
 
 
 # Run ----------
@@ -31,12 +31,24 @@ out <- MedMod::MedMod(
   treatment = "Intervention", # name of treatment variable
   subgroup = "Male", # name of moderator subgroup variable
   covariates = c("C.1", "C.2", "C.3"), # names of baseline covariates
-  learners = c("SL.mean", "SL.glm", "SL.ranger", "SL.nnet"),
-  # methods from the SuperLearner package to include in the super learner ensemble (intercept-only model, generalized linear model, random forest, neural network).
+  learners = c("SL.mean", "SL.glm", "SL.ranger", "SL.nnet"), # methods from the SuperLearner package to include in the super learner ensemble (intercept-only model, generalized linear model, random forest, neural network).
   # To see all available methods, run: SuperLearner::listWrappers()
   num_folds = 4, # number of folds for cross-fitting
-  ci.level = 0.95 # default: 95% confidence interval
+  ci.level = 0.95 # default: 95% confidence interval  
   )
+
+
+# checking the positivity assumption for the treatment and subgroup, and for the binary mediators
+positivity_treat_subgroup <- MedMod::MedMod_overlap(out)
+positivity_mediator <- MedMod::MedMod_mediator_positivity(out)
+
+# overlap plots for checking the positivity
+positivity_treat_subgroup$plot 
+positivity_mediator$plot
+
+# summaries of estimates of the conditional probabilities
+positivity_treat_subgroup$summary 
+positivity_mediator$summary
 
 
 # Extract results for mediated moderation
@@ -62,13 +74,13 @@ plotdf <- out %>%
     type = factor(numtype, levels = c(1:5), labels = c(
       "Existing condition", #1
       "Adapted condition: Mediators M1 and M2 were independent given baseline covariates", #2
-      "Adapted condition: M2 were matched to the reference subgroup with similar baseline covariates, while M1 were that of the comparison subgroup", #3
+      "Adapted condition: M2 were matched to the reference subgroup with similar baseline covariates, while M1 were that of the focal subgroup", #3
       "Adapted condition: M1 and M2 were independently matched to the reference subgroup with similar baseline covariates",
       "Adapted condition: Mediators were jointly matched to the reference subgroup with similar baseline covariates"
     )),
     # separate outcomes between subgroups
     subgroup = case_when(
-      substr(Estimand, 10,11) == "r1" ~ "boys (comparison)",
+      substr(Estimand, 10,11) == "r1" ~ "boys (focal)",
       substr(Estimand, 10,11) == "r0" ~ "girls (reference)"
     ),
     # separate outcomes between treatment conditions
