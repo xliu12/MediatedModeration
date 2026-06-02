@@ -15,6 +15,8 @@ MedMod(
   learners_h = NULL,
   learners_mu = NULL,
   num_folds = 5,
+  fity.interact = FALSE,
+  fitm.interact = FALSE,
   ci.level = 0.95
 )
 }
@@ -34,9 +36,13 @@ MedMod(
 \item{learners}{a character vector specifying the methods for estimating the nuisance models. Currently supported options include the list of methods included in the "SuperLearner" package (<https://cran.r-project.org/package=SuperLearner>), which can be listed via function listWrappers() of the "SuperLearner" package.}
 
 \item{num_folds}{the number of folds used for the cross-fitting procedure.}
+
+\item{fity.interact}{logical; if \code{TRUE}, the outcome nuisance models include interactions among the treatment, subgroup, and the mediators. Defaults to \code{FALSE}.}
+
+\item{fitm.interact}{logical; if \code{TRUE}, the mediator nuisance models include interactions among the treatment, subgroup, and the mediators. Defaults to \code{FALSE}.}
 }
 \value{
-A data frame containing the results for the mediated moderation estimands and the expected potential outcomes in the estimands. The results include the estimates, standard error estimates, and 0.95 confidence intervals.
+A data frame containing the results for the mediated moderation estimands and the expected potential outcomes in the estimands. The results include the estimates, standard error estimates, and 0.95 confidence intervals. The returned data frame also carries an attribute \code{"probabilities"}: a named list of the cross-fitted treatment/subgroup probability estimates (one row per observation) -- \code{joint_tr_c} = p(T, R | C), \code{subgroup_r_c} = p(R | C), and \code{treatment_t_rc} = p(T | R, C). Retrieve it with \code{\link{MedMod_probabilities}}. It also carries an attribute \code{"fit_inputs"}: the data, variable-role map, cross-fitting folds, learners, and mediator family needed to re-fit the mediator-side nuisances on demand (used by \code{\link{MedMod_mediator_positivity}}). Retrieve it with \code{\link{MedMod_fit_inputs}}.
 }
 \description{
 Mediated moderation analysis with the debiased machine learning method
@@ -67,6 +73,8 @@ out <- MedMod::MedMod(
   # methods from the SuperLearner package to include in the super learner ensemble (intercept-only model, generalized linear model, random forest, neural network).
   # To see all available methods, run: SuperLearner::listWrappers()
   num_folds = 4, # number of folds for cross-fitting
+  fity.interact = TRUE, # include treatment/subgroup/mediator interactions in the outcome nuisance models
+  fitm.interact = TRUE, # include treatment/subgroup/mediator interactions in the mediator nuisance models
   ci.level = 0.95 # default: 95\% confidence interval
 )
 # Extract results for mediated moderation

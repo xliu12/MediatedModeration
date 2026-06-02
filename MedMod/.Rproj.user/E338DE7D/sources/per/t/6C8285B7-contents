@@ -74,7 +74,8 @@ h.MedMod <- function(
       eify <- rm1m2ipw_y * (Y - mu)  / mean(rm1m2ipw_y)
 
       ipw_m1 <- 1*(TT==tt)*(R==r1) / bound(tr_c[, glue("p(t{tt},r{r1}|c)")])
-      eifm1 <- ipw_m1 * (muM_zc - muMZ_c) / mean(ipw_m1)
+      # eifm1 <- ipw_m1 * (muM_zc - muMZ_c) / mean(ipw_m1)
+      eifm1 <- ipw_m1 * (muM_zc - muZM_c) / mean(ipw_m1)
 
       ipw_m2 <- 1*(TT==tt)*(R==r2) / bound(tr_c[, glue("p(t{tt},r{r2}|c)")])
       eifm2 <- ipw_m2 * (muZ_mc - muZM_c) / mean(ipw_m2)
@@ -85,7 +86,7 @@ h.MedMod <- function(
       theta[[ glue("theta(t{tt},r{r0},r{r1},r{r2})") ]] <- mean(eif_mar)
 
       rmpw[[ glue("theta(t{tt},r{r0},r{r1},r{r2})") ]] <- mean( rm1m2ipw_y / mean(rm1m2ipw_y) * Y )
-      reg[[ glue("theta(t{tt},r{r0},r{r1},r{r2})") ]] <- mean( muMZ_c )
+      reg[[ glue("theta(t{tt},r{r0},r{r1},r{r2})") ]] <- mean( muZM_c )
 
     }
 

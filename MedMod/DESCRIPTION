@@ -16,7 +16,9 @@ Imports:
     origami,
     tidyverse,
     glue,
-    purrr
+    purrr,
+    ggplot2,
+    scales
 Suggests:
     testthat,
     knitr,

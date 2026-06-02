@@ -1,0 +1,262 @@
+
+library(origami)
+library(mvtnorm)
+library(tidyverse)
+library(glue)
+library(SuperLearner)
+
+source("../Simulation_Demo/fun_gendata.R")
+
+
+
+GenData <- function(
+    sim.seed = 123,
+    n = 500,
+    Mfamily = "binomial", # "gaussian",
+    Yfamily = "gaussian", #"binomial", #
+    quadratic.R = FALSE,
+    quadratic.M = FALSE,
+    quadratic.Y = FALSE,
+    interact = TRUE,
+    no_tt = FALSE,
+    num_c = 3
+) {
+  set.seed(seed = sim.seed)
+  # baseline covariates ----
+  # num_c <- 5
+  C_dat <- rmvnorm(n, sigma = diag(1, nrow = num_c))
+  # C_dat[, 1] <- 1*(C_dat[, 1] >0)
+  # if (num_c > 3) {
+  #   C_dat[, which(1:num_c %% 3 == 1)] <- 1*(C_dat[, which(1:num_c %% 3 == 1)] > 0)
+  # }
+  # C_dat <- 1*(C_dat > 0)
+  dat <- data.frame(ID = 1:n)
+  dat$C <- C_dat
+
+  # Subgroup ----
+  gen_r <- list(r_c = sqrt(0/num_c))
+  if (quadratic.R == FALSE) {
+    r_given <- gen_r[["r_c"]] * rowSums(dat$C)
+  }
+  if (quadratic.R == TRUE) {
+    Cquad <- (dat$C ^ 2 - 1) / sqrt(2)
+    # Cquad <- dat$C[, 1]*dat$C
+    # gen_r[["r_c"]] <- sqrt(0.4/num_c)
+    r_given <- gen_r[["r_c"]] * rowSums(Cquad)
+  }
+  dat$R <- rbinom(n, 1, pr(1, r_given, gen_r))
+
+  # Treatment ------
+  gen_tt <- list(tt_c = sqrt(0/num_c), tt_r = 0)
+
+  if (quadratic.R == FALSE) {
+    tt_given <- gen_tt[["tt_c"]] * rowSums(dat$C) + gen_tt[["tt_r"]] * dat$R
+  }
+  if (quadratic.R == TRUE) {
+    Cquad <- (dat$C ^ 2 - 1) / sqrt(2)
+    # Cquad <- dat$C[, 1]*dat$C
+    # gen_tt[["tt_c"]] <- sqrt(0.4/num_c)
+    tt_given <- gen_tt[["tt_c"]] * rowSums(Cquad) + gen_tt[["tt_r"]] * dat$R
+  }
+
+  dat$tt <- rbinom(n, 1, ptt(1, tt_given, gen_tt))
+
+
+
+  # intermediate  -----------------------
+  if (Mfamily == "binomial") {
+    zintercept <- -1
+    mintercept <- -1
+  }
+  if (Mfamily == "gaussian") {
+    zintercept <- 0
+    mintercept <- 0
+  }
+  if (interact == FALSE) {
+    gen_z <- list(zintercept = zintercept,
+                  z_r = 0.1, z_tt = 0.1, z_rtt =0.5,
+                  z_c = sqrt(0.15/num_c) )
+    gen_m <- list(mintercept = mintercept,
+                  m_r = 0.1, m_tt = 0.1, m_z = 0.2,
+                  m_rtt = 0.5,
+                  m_rz = 0, m_ttz = 0,
+                  m_zrtt = 0,
+                  m_c = sqrt(0.15/num_c) )
+  }
+  if (interact == TRUE) {
+    gen_z <- list(zintercept = zintercept,
+                  z_r = 0.1, z_tt = 0.1, z_rtt =0.2,
+                  z_c = sqrt(0.15/num_c) )
+    gen_m <- list(mintercept = mintercept,
+                  m_r = 0.1, m_tt = 0.1, m_z = 0.2,
+                  m_rtt = 0.2,
+                  m_rz = 0, m_ttz = 0,
+                  m_zrtt = 0.2,
+                  m_c = sqrt(0.15/num_c) )
+
+    if (Mfamily == "gaussian" ) { #|Mfamily == "binomial"
+      gen_z <- list(zintercept = zintercept,
+                    z_r = -0.05, z_tt = 0.1, z_rtt = 0.1,
+                    z_c = sqrt(0.15/num_c) )
+      gen_m <- list(mintercept = mintercept,
+                    m_r = -0.05, m_tt = 0.1, m_z = 0.2,
+                    m_rtt = 0.1,
+                    m_rz = 0, m_ttz = 0,
+                    m_zrtt = -0.1,
+                    m_c = sqrt(0.15/num_c) )
+    }
+
+  }
+  if (quadratic.M == FALSE) {
+    z_given <- gen_z[["zintercept"]] + gen_z[["z_c"]] * rowSums(dat$C)
+    m_given <- gen_m[["mintercept"]] + gen_m[["m_c"]] * rowSums(dat$C)
+  }
+  if (quadratic.M == TRUE) {
+    Cquad <- (dat$C ^ 2 - 1) / sqrt(2)
+    # Cquad <- dat$C[, 1]*dat$C
+    # gen_z[["z_c"]] <- sqrt(0.4/num_c)
+    # gen_m[["m_c"]] <- sqrt(0.4/num_c)
+    z_given <- gen_z[["zintercept"]] + gen_z[["z_c"]] * rowSums(Cquad)
+    m_given <- gen_m[["mintercept"]] + gen_m[["m_c"]] * rowSums(Cquad)
+  }
+
+  if (Mfamily == "binomial") {
+    dat$Z <- rbinom(n, 1, prob = pz(tt = dat$tt, r = dat$R, z_given, gen_z, if_binary = TRUE) )
+    dat$M <- rbinom(n, 1, prob = pm(dat$Z, dat$tt, dat$R, m_given, gen_m, if_binary = TRUE) )
+  }
+  if (Mfamily == "gaussian") {
+    dat$Z <- pz(tt = dat$tt, r = dat$R, z_given, gen_z, if_binary = FALSE) + rnorm(n)
+    dat$M <- pm(dat$Z, dat$tt, dat$R, m_given, gen_m, if_binary = FALSE) + rnorm(n)
+  }
+
+
+  # Outcome -----
+  if (Yfamily=="gaussian") { yintercept <- 1 }
+  if (Yfamily!="gaussian") { yintercept <- -1 }
+
+  if (interact == FALSE) {
+    gen_y <- list(yintercept = yintercept,
+                  y_r = 0.2, y_tt = 0.2, y_m = 1, y_z = 1,
+                  y_rtt = 1,
+                  y_rm = 0, y_ttm = 0, y_rz = 0, y_ttz = 0, y_zm = 0,
+                  y_rttm = 0, y_rttz = 0, y_rmz = 0, y_ttmz = 0,
+                  y_ttrzm = 0,
+                  y_c = sqrt(0.15 / num_c) )
+  }
+  if (interact == TRUE) {
+    # gen_y <- list(yintercept = yintercept,
+    #               y_r = 0.2, y_tt = 0.2, y_m = 1, y_z = 1,
+    #               y_rtt = 1,
+    #               y_rm = 0, y_ttm = 0, y_rz = 0, y_ttz = 0, y_zm = 1,
+    #               y_rttm = 0, y_rttz = 0, y_rmz = 0, y_ttmz = 0,
+    #               y_ttrzm = 0.8,
+    #               y_c = sqrt(0.15 / num_c) )
+    #
+    # if(Mfamily=="gaussian") {
+    gen_y <- list(yintercept = yintercept,
+                  y_r = 0.2, y_tt = 0.2, y_m = 1, y_z = 1,
+                  y_rtt = 1,
+                  y_rm = 0, y_ttm = 0, y_rz = 0, y_ttz = 0, y_zm = 1,
+                  y_rttm = 0.4, y_rttz = 0.4, y_rmz = 0, y_ttmz = 0,
+                  y_ttrzm = 1,
+                  y_c = sqrt(0.15 / num_c) )
+    # }
+
+  }
+  if (quadratic.Y == FALSE) {
+    y_given <- gen_y[["yintercept"]] + gen_y[["y_c"]] * rowSums(dat$C)
+  }
+  if (quadratic.Y == TRUE) {
+    Cquad <- (dat$C ^ 2 - 1) / sqrt(2)
+    # Cquad <- dat$C[, 1]*dat$C
+    # gen_y[["y_c"]] <- sqrt(0.4/num_c)
+    y_given <- gen_y[["yintercept"]] + gen_y[["y_c"]] * rowSums(Cquad)
+  }
+
+  if_binary <- (Yfamily == "binomial")
+
+  if (Yfamily == "gaussian") {
+    condmy <- my(m = dat$M, dat$Z, dat$tt, dat$R, y_given, gen_y, if_binary = FALSE)
+    dat$Y <- condmy + rnorm(n)
+  }
+  if (Yfamily == "binomial") {
+    condmy <- my(m = dat$M, dat$Z, dat$tt, dat$R, y_given, gen_y, if_binary = TRUE)
+    dat$Y <- rbinom(n, 1, condmy)
+  }
+
+  datobs <- do.call(data.frame, dat)
+
+
+
+  out <- mget( ls(), envir = environment() )
+
+  return(out)
+}
+
+# two mediators ---------
+gen_two_mediators <- GenData(sim.seed = 123,
+                              n = 500,
+                              Mfamily = "binomial", # "gaussian",
+                              Yfamily = "gaussian", #"binomial", #
+                              quadratic.R = FALSE,
+                              quadratic.M = FALSE,
+                              quadratic.Y = FALSE,
+                              interact = TRUE,
+                              no_tt = FALSE,
+                              num_c = 3)
+
+data_two_mediators <- gen_two_mediators$datobs %>%
+  rename(M1 = Z, M2 = M,
+         Male = R, Intervention = tt, Outcome = Y)
+
+write.csv(data_two_mediators, file = "../Simulation_Demo/data_two_mediators.csv", row.names = FALSE)
+
+# one mediator ----------
+data_one_mediator <- GenData()
+
+
+
+
+# not used -----------
+trueVals <- function() {
+  vals <- rbind(
+    expand.grid(tt = c(0, 1), r0 = c(1), r1 = c(0,1), r2 = c(0), rjo = NA),
+    expand.grid(tt = c(0, 1), r0 = c(1), r1 = c(1), r2 = c(0,1), rjo = NA),
+    expand.grid(tt = c(0, 1), r0 = c(1), r1 = NA, r2 = NA, rjo = c(0,1)),
+    expand.grid(tt = c(0, 1), r0 = c(0), r1 = NA, r2 = NA, rjo = c(0))
+  )
+
+
+  if_binaryY <- (Yfamily == "binomial")
+  if_binaryZM <- (Mfamily == "binomial")
+  truevals <- list()
+
+  j <- 1
+  for (j in 1:nrow(vals)) {
+    tt <- vals$tt[j]
+    r0 <- vals$r0[j]
+    r1 <- vals$r1[j]
+    r2 <- vals$r2[j]
+    rjo <- vals$rjo[j]
+
+    trueval <- true.val(tt, r0, r1, r2, rjo, y_given, gen_y, if_binaryZM, if_binaryY, m_given, z_given, gen_m, gen_z, linear = FALSE)
+    if (!is.na(r1)) {
+      truevals[[ glue("theta(t{tt},r{r0},r{r1},r{r2})") ]] <- trueval
+    }
+    if (!is.na(rjo)) {
+      truevals[[ glue("theta(t{tt},r{r0},rjo{rjo})") ]] <- trueval
+      if (r0==rjo) {
+        truevals[[ glue("delta(t{tt},r{r0})") ]] <- truevals[[ glue("theta(t{tt},r{r0},rjo{rjo})") ]]
+      }
+    }
+  }
+  if (no_tt==FALSE) {
+    true_effs <- effect(truevals)
+  }
+  if (no_tt==TRUE) {
+    true_effs <- effect_nott(truevals)
+  }
+  return(true_effs)
+}
+
+

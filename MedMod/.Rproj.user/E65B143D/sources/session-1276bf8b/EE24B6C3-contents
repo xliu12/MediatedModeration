@@ -1,0 +1,1101 @@
+# library(foreign)
+library(tidyverse)
+library(mice)
+library(mitml)
+# library(miceadds)
+library(fastDummies)
+library(missForest)
+library(haven)
+library(skimr)
+library(labelled)
+library(purrr)
+library(origami)
+library(mvtnorm)
+library(parallel)
+library(tidyverse)
+library(glue)
+library(SuperLearner)
+library(lightgbm)
+library(earth)
+
+options(dplyr.print_max = 100, pillar.print_max = 50, dplyr.width = Inf)
+
+devtools::load_all("../multiMedMod")
+
+# other examples
+setwd("~/Library/CloudStorage/Box-Box/Labs/Mediated/R_mediated/LIFT/LIFT Data/PITL")
+dir_lift <- "~/Library/CloudStorage/Box-Box/Labs/Mediated/R_mediated/LIFT/LIFT Data/PITL"
+
+# Read in data --------------------
+# load("~/Library/CloudStorage/Box-Box/Labs/Mediated/R_mediated/lift1228.RData")
+# load("../R_mediated/lift1228.RData")
+
+## skip importing the already included ----
+PARTICIPATION <- read_sav("cross waves data/PARTICIPATION BY WAVE.SAV")
+P1_15_CHILD_ANTISOCIAL <- read_sav("cross waves data/P1-15 CHILD ANTISOCIAL.SAV")
+P1_15CBCL_SCALES <- read_sav("cross waves data/P1_15CBCL SCALES.sav")
+P1_15CSUB <- read_sav("cross waves data/P1_15CSUB.SAV")
+P1_12PARENT_SUBSTANCE <- read_sav("cross waves data/P1_12PARENT SUBSTANCE.SAV")
+P1_12FAMILY_STATUS <- read_sav("cross waves data/P1_12FAMILY STATUS.SAV")
+TC_OFFENSES_SUMMARY <- read_sav("cross waves data/TC OFFENSES SUMMARY.SAV")
+# construct scales measured at each wave
+P1SCLE_p1 <- read_sav("SCLE/P1SCLE.D13")
+demo_p1 <- read_sav("P1_1-3/P1DEMO.D13")
+P3SCLE <- foreign::read.spss("SCLE/P3SCLE.D13", to.data.frame = T)
+P4SCLE_p1 <- read_sav("SCLE/P4SCLE.D13")
+P5SCLE_p1 <- read_sav("SCLE/P5SCLE.D13")
+P6SCLE_p1 <- read_sav("SCLE/p6scle.d13")
+P7SCLE_p1 <- read_sav("SCLE/P7SCLE.D13")
+P8SCLE_p1 <- read_sav("SCLE/P8SCLE.D13")
+P10SCLE_p1 <- read_sav("SCLE/P10SCLE.D13")
+P12SCLE_p1 <- read_sav("SCLE/P12SCLE.D13")
+# cross wave construct scores
+P1_12RISK <- read_sav("TECH/P1_12RISK.sav") # number of antisocial behavior risk factors rated by teachers
+P1_12DVP <- read_sav("TECH/P1_12DVP.sav") # deviant peers
+P1_3IPC <- read_sav("TECH/P1_3IPC.sav") # playground with peers
+P1_3PNOMN <- read_sav("TECH/P1_3PNOMN.sav")
+P1_3SAB <- read_sav("TECH/P1_3SAB.sav")
+P1_3SI <- read_sav("TECH/P1_3SI.sav")
+P1_3TOCA <- read_sav("TECH/P1_3TOCA.sav")
+P1_7TPRSK <- read_sav("TECH/P1_7TPRSK.sav")
+P1_10AD <- read_sav("TECH/P1_10AD.sav")
+# P1_10DEPC <- read_sav("TECH/P1_10DEPC.sav")
+P1_10DSM <- read_sav("TECH/P1_10DSM.sav")
+P1_10PCR <- read_sav("TECH/P1_10PCR.sav") # parent-child relationship
+P1_10PIN <- read_sav("TECH/P1_10PIN.sav") # parent involement
+P1_10PIR <- read_sav("TECH/P1_10PIR.sav")
+P1_12DIS <- read_sav("TECH/P1_12DIS.sav") # parent discipline
+P1_12POSR <- read_sav("TECH/P1_12POSR.sav") # parent positive reinforcement
+P1_12SUP <- read_sav("TECH/P1_12SUP.sav") # parent supervision and monitor
+P1_12IPTL <- read_sav("TECH/P1_12IPTL.sav") # parent-child interactions
+P1_12SAS <- read_sav("TECH/P1_12SAS.sav")
+P1_10DSM <- read_sav("TECH/P1_10DSM.sav") # Oppositional Defiant Disorder (OD) & Conduct Disorder (CD)
+P1_12CSU <- read_sav("TECH/P1_12CSU.sav") # child substance use
+P1_10WD <- read_sav("TECH/P1_10WD.sav") # child withdrawn
+P1_10REJ <- read_sav("TECH/P1_10REJ.sav")
+P1_10SSK <- read_sav("TECH/P1_10SSK.sav")
+P1_10WL <- read_sav("TECH/P1_10WL.sav")
+P1_12AA <- read_sav("TECH/P1_12AA.sav")
+P1_12CHW <- read_sav("TECH/P1_12CHW.sav")
+P1_12HAS <- read_sav("TECH/P1_12HAS.sav")
+P1_12LAB <- read_sav("TECH/P1_12LAB.sav")
+P1_12PD <- read_sav("TECH/P1_12PD.sav")
+P1_12PIH <- read_sav("TECH/P1_12PIH.sav")
+
+## newly included ----
+P6_16_SEX_PREGNANCY <- read_sav(file.path(dir_lift, "cross waves data/P6_16 SEX_PREGNANCY.SAV"))
+
+var_label(P6SCLE_p1) %>% grep("risk", ., value = T, ignore.case = T)
+
+
+
+# Load ---------------------
+#load("~/Library/CloudStorage/Box-Box/Labs/Mediated/R_mediated/replicate_lift_others2.RData")
+
+# data_in2 <- data_in
+# datuse2 <- datuse
+# imp_miss2 <- imp_miss
+# datimp2 <- datimp
+
+# ___________________ ------------
+## skip already included ----
+# tt (Treatment) & R (Moderator) ----
+trt_dat <- PARTICIPATION %>% select(FAMILY, GRADE, GROUP, SEX)
+
+# Y: Outcome ---------------------
+# child substance use
+y_dat_csub <- P1_12CSU %>% # P1_15CSUB %>%
+  mutate(
+    Y_substance10 = CTSUA1,
+    Y_tobacco10 = C81AJ4,
+    Y_drug10 = C81DRGA1,
+    Y_substance8 = CTSU81,
+    Y_tobacco8 = C818J4,
+    Y_drug8 = C81DRG81
+  ) %>%
+  select(FAMILY, starts_with("Y_"), starts_with("C_"))
+
+
+
+
+# join the outcome data
+y_dat <- y_dat_csub #%>%
+  # full_join(y_dat_cbehave, by =  "FAMILY") %>%
+  #full_join(y_dat_schoolantisoc, by =  "FAMILY")
+
+
+# # Or:
+# y_dat_2 <- datuse %>% select(
+#   starts_with("Y_"), c(FAMILY)
+# )
+# colnames(y_dat_2)[colMeans(apply(y_dat_2, 2, is.na)) > 0.36]
+# y_dat <- y_dat_2[, colMeans(apply(y_dat_2, 2, is.na)) <= 0.36]
+
+
+
+# M: Intermediate variables --------------
+
+# Total summed risk screening scores of 0-3 are designated low risk, while 4-8 are moderate risk, and 9-21 are high risk
+m_dat_risk <- P1_12RISK %>% mutate(
+  # C_risk = TV8RSK11,
+  M_risk8 = TV8RSK81,
+  M_risk4= TV8RSK41, M_risk3= TV8RSK31, M_risk5= TV8RSK51, M_risk6= TV8RSK61
+) %>% dplyr::select(FAMILY, starts_with("M_"), starts_with("C_"))
+
+m_dat_wmtprefer <- P1_7TPRSK %>% dplyr::select(
+FAMILY,  TB4TP31, TB4TP41, TB4TP51,TB4TP61,TB4TP71
+  ) %>%
+  rename_with(~paste0("M_teaprefer", .), c(!FAMILY))
+
+m_dat_schoolantisoc <- P1_12SAS %>% dplyr::select(
+  FAMILY,T42AS32, T42AS42, T42AS52, T42AS62,T42AS82
+) %>%
+  rename_with(~paste0("M_sas", .), c(!FAMILY))
+
+
+skim(P1_12DVP)
+summary(lm(I(TDVPR82>=2.5) ~ I(GROUP==1)*I(SEX==2), data = P1_12DVP[P1_12DVP$GRADE==2, ]))
+# add more deviant peer time points
+m_dat_dvpeers <- P1_12DVP %>%
+  # mutate(
+  #   C_deviantpeers_teacher = TDVPR12
+  # ,C_dvpP59139 = P59139, C_dvpPA8113 = PA8113, C_dvpP54DVP1=P54DVP1
+  # ) %>%
+  mutate(
+    M_deviantpeers5 = TDVPR52, # P59539, #
+    M_deviantpeers6 = TDVPR62, #P59639,
+    M_deviantpeers8 = TDVPR82,  #P59839, #
+    M_deviantpeers4 = TDVPR42, #P59439 #
+    M_deviantpeers3 = TDVPR32,
+    M_dvpPOCA3 = P54DVP3, M_dvpPOCA4=P54DVP4, M_dvpPOCA5=P54DVP5, M_dvpPOCA6=P54DVP6, M_dvpPOCA8=P54DVP8, M_dvpPOCA10=P54DVPA
+  ) %>% dplyr::select(FAMILY, starts_with("M_"), starts_with("C_"))
+
+# m_dat_aversive <- P1_15_CHILD_ANTISOCIAL %>% dplyr::select(
+#   FAMILY, CAAVLR41, CAAVLR51, CAAVLR61, CAAVLR81
+# ) %>%
+#   rename_with(~paste0("M_aversive", .), c(!FAMILY))
+
+
+
+m_dat_aggress <- P1_15_CHILD_ANTISOCIAL %>% dplyr::select(
+  FAMILY, P593AG2R, P594AG2R, P595AG2R, P596AG2R, P598AG2R,
+  T423AG2R, T424AG2R, T425AG2R, T426AG2R, T428AG2R
+) %>%
+  rename_with(~paste0("M_aggress", .), c(!FAMILY))
+
+
+m_dat_delinq <- P1_15_CHILD_ANTISOCIAL %>% dplyr::select(
+  FAMILY, P593DL2R, P594DL2R, P595DL2R, P596DL2R, P598DL2R,
+  T423DL2R, T424DL2R, T425DL2R, T426DL2R, T428DL2R
+) %>%
+  rename_with(~paste0("M_delinq", .), c(!FAMILY))
+
+# m_dat_cbehave <- P1_15CBCL_SCALES %>% # P1_15_CHILD_ANTISOCIAL %>% #
+#   # mutate(
+#   #   C_aggress = T421AG2R, C_withdrawn = T421WT2R, C_somatic = T421SO2R,
+#   #   C_anxiousdepress = T421AN2R, C_attentionprob = T421AP2R,
+#   #   C_delinq = T421DL2R, C_socialproblem = T421SP2R, C_thoughtproblem = T421TP2R
+#   #   # C_external = T421EX2R, C_internal = T421IN2R,
+#   # ) %>%
+#   mutate(
+#     # total score
+#     M_totalscore3 = T423TO2R, M_totalscore4 = T424TO2R, M_totalscore5 = T425TO2R, M_totalscore6 = T426TO2R, M_totalscore8 = T428TO2R, M_totalscore10 = T42ATO2R,
+#     # # social problems
+#     # M_socialproblem3 = T423SP2R, M_socialproblem4 = T424SP2R, M_socialproblem5 = T425SP2R, M_socialproblem6 = T426SP2R, M_socialproblem8 = T428SP2R, M_socialproblem10 = T42ASP2,
+#     # aggressive behaviors
+#     M_aggress3 = T423AG2R, M_aggress4 = T424AG2R, M_aggress5 = T425AG2R, M_aggress6 = T426AG2R, M_aggress8 = T428AG2R, M_aggress10 = T42AAG2R
+#   ) %>% select(FAMILY, starts_with("M_"), starts_with("C_"))
+
+P1_10PCR %>%
+  select(starts_with("C")) %>%
+  skim()
+
+summary(lm(I(P86PC61>4) ~ I(GROUP==1)*I(SEX==2), data = P1_10PCR[P1_10PCR$GRADE==2, ]))
+
+
+m_dat_parchild <- P1_10PCR %>% dplyr::select(
+  FAMILY,
+  P85PC32, P85PC42, P85PC52, P85PC62, P85PC82
+) %>%
+  rename_with(~paste0("M_PCR", .), c(!FAMILY))
+
+
+m_dat_pardiscipline <- P1_12DIS %>% mutate(
+  M_dispappr = P85APD41,
+  M_dispinappr.pint = P85IPD41, M_dispinconsis.pint = P85ICD41
+  ) %>% dplyr::select(FAMILY, starts_with("M_"), starts_with("C_"))
+
+m_dat_playground <- P1_3IPC %>%
+  mutate(
+    M_aversivephy3 = CAAPR32, M_neutralphy = CANPR32,M_posphy = CAPPR32
+  ) %>% dplyr::select(FAMILY, starts_with("M_"))
+
+
+
+m_dat_familyinteraction <- P1_12IPTL %>%
+  mutate(
+    # Aversive Engagement
+    M_chaversivefamily3 = CAAVLR31,
+    M_chaversivefamily4 = CAAVLR41, M_chaversivefamily5 = CAAVLR51, M_chaversivefamily6 = CAAVLR61, M_chaversivefamily8 = CAAVLR81, M_chaversivefamily10 = CAAVLRA1,
+    # Positive Engagement
+    M_chldposfamily3 = CAPOLR31,
+    M_chldposfamily4 = CAPOLR41,M_chldposfamily5 = CAPOLR51,M_chldposfamily6 = CAPOLR61,
+    M_chldposfamily8 = CAPOLR81, M_chldposfamily10 = CAPOLRA1
+  ) %>%
+  dplyr::select(FAMILY, starts_with("M_"))
+
+
+
+m_dat <- list(
+  # m_dat_sex,
+  # m_dat_oppdef, # m_dat_conduct,
+  # m_dat_childpcr,
+  m_dat_dvpeers,
+  m_dat_risk,
+  # m_dat_wmtprefer,
+  # m_dat_aversive,
+  # m_dat_schoolantisoc, # collinear with aggressive behaviors
+  # m_dat_cbehave
+  m_dat_aggress,
+  m_dat_delinq,
+  m_dat_playground,
+  m_dat_familyinteraction,
+  m_dat_parchild,
+  m_dat_pardiscipline
+) %>%
+  reduce(full_join, by="FAMILY")
+
+m_dat %>% skim()
+
+
+# not standardize m, maintain the original scale
+# m_dat <- m_dat %>% mutate(
+#   # across(!c(FAMILY), ~as.numeric(scale(., center=T, scale=T)) )
+#   across(!c(FAMILY), ~((. - mean(., na.rm=T))/sd(., na.rm=T)) )
+# )
+
+
+# C: baseline covariates ------------------------------
+
+
+
+# parents substance use
+c_dat_parents_substance <- P1_12PARENT_SUBSTANCE %>% select(
+  FAMILY,
+  FV9108, # FV9109C,FV9109D,
+  MV9108, # MV9109C, MV9109D
+) %>%
+  rename_with(~paste0("C_parentdrink", .), c(!FAMILY))
+
+
+c_dat_familystatus <- P1_12FAMILY_STATUS %>% select(
+  FAMILY,
+  Q11SIB1, P11SES1, INCOME1, FEDUC1, MEDUC1
+) %>%
+  rename_with(~paste0("C_famst", .), c(!FAMILY))
+
+c_dat_risk <- P1_12RISK %>% select(
+  FAMILY,
+  TV8RSK11
+) %>%
+  rename_with(~paste0("C_risk", .), c(!FAMILY))
+
+
+c_dat_deviantpeer <- P1_12DVP %>% select(
+  FAMILY,
+  TDVPR12,P54DVP1
+) %>%
+  rename_with(~paste0("C_deviantpeer", .), c(!FAMILY))
+
+
+c_dat_schlantisoc <- P1_12SAS %>% select(
+  FAMILY,
+  T42AS12
+) %>%
+  rename_with(~paste0("C_schlantisoc", .), c(!FAMILY))
+
+
+c_dat_cbcl <- P1_15CBCL_SCALES %>% select(
+  FAMILY, T421DL2R, T421AG2R,
+  M591DL2R,F591DL2R,M591AG2R,F591AG2R,
+  T421IN2R, M591IN2R
+  # M591TO2R,F591TO2R,
+  # T421WT2R, T421SO2R,
+  # T421AN2R, T421AP2R,
+  # T421SP2R, T421TP2R
+) %>%
+  rename_with(~paste0("C_cbcl", .), c(!FAMILY))
+
+
+
+
+c_dat_schladjust <- P1_3SAB %>% select(
+  FAMILY, TV8SA11, Q1V1PE, QV6SA11
+) %>%
+  rename_with(~paste0("C_schladjust", .), c(!FAMILY))
+
+
+
+c_dat_parchild <- P1_10PCR %>% select(
+  FAMILY,
+  P85PC12, P86PC11
+) %>%
+  rename_with(~paste0("C_pcrelation", .), c(!FAMILY))
+
+
+c_dat_pardiscipline <- P1_12DIS %>% select(
+  FAMILY,P85APD11, P85ICD11, P86APD11 #, P86IPDC1
+  ) %>% rename_with(~paste0("C_discipline", .), c(!FAMILY))
+
+
+c_dat_parsupervision <- P1_12SUP %>% select(
+FAMILY,P86120, MV4MN12, P54MN12, FV4MN12,MV4MN12, TB4119  #C82112,
+) %>%
+  rename_with(~paste0("C_supervision", .), c(!FAMILY))
+
+
+
+c_dat_pinvol <- P1_10PIN %>% select(
+  FAMILY, P85PI11, P27PI11
+) %>%
+  rename_with(~paste0("C_parentinvole", .), c(!FAMILY))
+
+
+# c_dat_pinvolhw <- P1_12PIH %>% select(
+#   FAMILY, P85CA7 # missing
+# ) %>%
+#   rename_with(~paste0("C_pinvolhw", .), c(!FAMILY))
+
+
+c_dat_attdef <- P1_10AD %>% select(
+  FAMILY,  P59AD11, PCAD11,T42AD11
+) %>%
+  rename_with(~paste0("C_attdef", .), c(!FAMILY))
+
+
+
+c_dat_homantisoc <- P1_12HAS %>% select(
+  FAMILY, PASCD11, PASOD11
+) %>%
+  rename_with(~paste0("C_homantisoc", .), c(!FAMILY))
+
+
+c_dat_parirritable <- P1_10PIR %>% select(
+  FAMILY, P86PIR11,P851G4
+) %>%
+  rename_with(~paste0("C_pirritable", .), c(!FAMILY))
+
+
+c_dat_rejected <- P1_10REJ %>% select(
+  FAMILY, PCREJ11,TCREJ12,
+) %>%
+  rename_with(~paste0("C_rejected", .), c(!FAMILY))
+
+
+c_dat_socialskill <- P1_10SSK %>% select(
+  FAMILY,  C82SS11
+) %>%
+  rename_with(~paste0("C_socialskill", .), c(!FAMILY))
+
+
+c_dat_wmscale <- P1_7TPRSK %>% select(
+  FAMILY,  TB4PP12,TB4TP12
+) %>%
+  rename_with(~paste0("C_wmscale", .), c(!FAMILY))
+
+
+c_dat_withdrawn <- P1_10WD %>% select(
+  FAMILY,  C82103,PCWD11
+) %>%
+  rename_with(~paste0("C_withdrawn", .), c(!FAMILY))
+
+
+c_dat_weliked <- P1_10WL %>% select(
+  FAMILY,  TB4102,PA8WL11
+) %>%
+  rename_with(~paste0("C_weliked", .), c(!FAMILY))
+
+
+
+c_dat_academic <- P1_12AA %>% select(
+  FAMILY, T42AA11, P59AA11
+) %>%
+  rename_with(~paste0("C_academic", .), c(!FAMILY))
+
+
+c_dat_hwengage <- P1_12CHW %>% select(
+  FAMILY,  P85HE11,T421A9
+) %>%
+  rename_with(~paste0("C_hwengage", .), c(!FAMILY))
+
+
+c_dat_iptl <- P1_12IPTL %>% select(
+  FAMILY, CAAPLR11,CAAVLR11,
+  CAPOLR11,CAPPLR11,
+  # CACOLR11,CAADLR11,
+  # CADRLR11,CADSLR11,
+  # CANELR11,CANPLR11,
+  MAAPLR11,MAAVLR11,
+  MAPOLR11,MAPPLR11
+) %>%
+  rename_with(~paste0("C_iptl", .), c(!FAMILY))
+
+c_dat_ipc <- P1_3IPC %>% select(
+  FAMILY, CAAPR12,CAAVR12,CAPOR12,CAPPR12
+  # ,CACOR12,CADRR12,CADSR12,
+  ,CANER12,CANPR12
+) %>%
+  rename_with(~paste0("C_ipc", .), c(!FAMILY))
+
+
+c_dat_tocasocial <- P1_3TOCA %>% select(
+  FAMILY, TV8SC11,TV8AR11,TV8MA11, TV8CA11,TV8CN11,TV8HY11
+) %>%
+  rename_with(~paste0("C_tocasocial", .), c(!FAMILY))
+
+
+c_dat_pardep <- P1_12PD %>% select(
+  FAMILY, M57PD11,F57PD11
+) %>%
+  rename_with(~paste0("C_pd", .), c(!FAMILY))
+
+
+c_dat_posreinforce <- P1_12POSR %>% select(
+  FAMILY,  P86123, P3VPOS11
+) %>%
+  rename_with(~paste0("C_posreinf", .), c(!FAMILY))
+
+
+# from scales
+# c_dat_scale <- P1SCLE_p1 %>% select(
+#   FAMILY,# Walker McConnell - Walker-McConnell Scale of Social Competence and School Adjustment,
+#   TB4TO11 # total
+#   #TB4PP11, # peer preferred of the Walker McConnell
+#   # TB4TP11 # teacher preferred
+#   # TB4SA11 # school adjustment
+# ) %>%
+#   rename_with(~paste0("C_ssk", .), c(!FAMILY))
+
+
+
+# join the baseline covariates
+clist <- ls() %>% grep("c_dat", ., value = T)
+clist <- clist[!clist%in%c("c_dat","c_dat0","c_dat00","c_dat_1")]
+clist
+
+cdatlist <- mget(clist)
+c_dat0 <- cdatlist %>% reduce(full_join, by="FAMILY")
+# check sd
+sd_cdat <- c_dat0 %>% summarise(across(!any_of(c("FAMILY")), ~sd(., na.rm=T)))
+# check cor
+cor_cdat <- c_dat0 %>% select(!c(FAMILY)) %>% cor(., use = "pairwise.complete.obs")
+highcor_cdat <- apply(cor_cdat, 2, function(s){
+  # any(s %in% cor_cdat[abs(cor_cdat)>0.8 & abs(cor_cdat)<1-1e-4])
+  highcor <- s[s>0.8 & s<1-1e-3]
+  highcorwith <- rownames(cor_cdat)[s>0.8 & s<1-1e-3]
+  names(highcor) <- highcorwith
+  highcor
+})
+
+highcor_cdat[map(highcor_cdat, length)>0]
+
+
+# reduce low sd or collinear variables
+c_dat <- c_dat0 %>%
+  select( !names(sd_cdat)[sd_cdat<0.01] ) %>%
+  select(
+    !contains("TV8CN11") & !contains("TV8CA11") & # collinear with C_schladjustTV8SA
+      !contains("T42AS12") & # col with T421AG2R
+      !contains("P59AD11") # col with PCAD11
+  )
+
+# # standardize to facilitate imputation
+# c_dat <- c_dat %>% mutate(
+#   across(!c(FAMILY), ~((. - mean(., na.rm=T))/sd(., na.rm=T)) )
+# )
+
+# Joining Data --------------------
+
+df_use <- list(
+  trt_dat, m_dat, y_dat, c_dat
+) %>% reduce(full_join, by="FAMILY")
+colnames(df_use)
+
+df_use$GRADE %>% table()
+skim(df_use[df_use$GRADE==2, ])->aa; view(aa)
+
+skim(df_use)->aa; view(aa)
+
+glm(I((Y_tobacco10>=1) ) ~ factor(GROUP) *  I(SEX==2) , data = df_use[df_use$GRADE==2, ], family="binomial") %>% summary()
+
+
+# Variables in analysis model --------
+
+
+# Impute missing data ------------------
+
+datmice <- df_use %>% dplyr::select(
+  FAMILY, GRADE,
+  starts_with("C_"), colnames(c_dat),
+  GROUP, SEX,
+  starts_with("M_"), starts_with("Y_")
+)
+
+
+datmice <- datmice %>% dplyr::select( !FAMILY )
+datmice <- do.call(data.frame, datmice)
+
+datmice <- datmice %>% mutate_all(~as.numeric(.))
+colnames(datmice)
+
+
+# variables with relatively low missing rates
+colMeans(apply(datmice, 2, is.na)) %>% sort(.)
+colMeans(apply(datmice[datmice$GRADE==2, ], 2, is.na)) %>% sort(.)
+colMeans(apply(datmice[datmice$GRADE==1, ], 2, is.na)) %>% sort(.)
+# CINT Parent-Child Relationship CM/F/P81PC_1: 	5th Grade only
+
+
+acceptmiss <- (colMeans(apply(datmice[datmice$GRADE==2, ], 2, is.na)) < 0.37) * (colMeans(apply(datmice, 2, is.na)) < 0.36)
+sum(acceptmiss)
+which(acceptmiss!=1) # integer(0)
+datmi <- datmice[, acceptmiss==1]
+
+colnames(datmi)[colMeans(apply(datmi, 2, is.na)) > 0.36]
+datmi %>% group_by(GRADE) %>%
+  summarise_all(., ~mean(is.na(.)) )
+
+# PARTICIPATION$CINT10
+datmi <- datmi %>%
+  mutate(
+    SEX = as.factor(SEX), GROUP = as.factor(GROUP)
+  ) #%>% filter(GRADE==2) %>% select(!GRADE)
+
+
+
+
+
+# Or:
+# datmi <- imp_miss2$data
+summary(datmi)
+
+
+mipred <- quickpred(datmi, mincor = 0.1, exclude = "FAMILY")
+mimthd <- make.method(datmi)
+
+
+eeeeee
+
+## mice ------
+imp_maxit100 <- mice(datmi, m=1, method = mimthd, predictorMatrix = mipred, maxit = 100, seed = 12345)
+
+# a quick check  (03-31-2024) to see whether datimp1 is obtained with complete(imp_maxit100), only grade 5
+# glm(I(Y_tobacco10 >= 1) ~ I(GROUP==1) *  I(SEX==2) ,
+#     data = complete(imp_maxit100)[datmi$GRADE==2, ] ) %>% summary()
+
+datimp1 <- complete(imp_maxit100)
+
+colnames(datimp1)[summarise_all(datimp1, ~mean(is.na(.)) )>0 ]
+datimp1 <- datimp1[, summarise_all(datimp1, ~mean(is.na(.)) )==0 ]
+
+
+# ___________________ ------------
+## end skip --------------
+# ___________________ ------------
+
+
+# Including New ----
+## new M ---------------
+summary(lm(I(P86PC81>4) ~ I(GROUP==1)*I(SEX==2), data = P1_10PCR[P1_10PCR$GRADE==2, ]))
+# C82_08: TC friendly, pleasant toward parents
+P1_10PCR %>% group_by(SEX,C82808) %>% summarise(n())
+summary(lm(I(C82808>=5) ~ I(GROUP==1)*I(SEX==2), data = P1_10PCR[P1_10PCR$GRADE==2, ]))
+
+m_dat_childpcr <- P1_10PCR %>% dplyr::select(
+  FAMILY,
+  C82808 #, P86PC31, P86PC41, P86PC51, P86PC61, P86PC81
+) %>%
+  rename_with(~paste0("M_childPCR_", .), c(!FAMILY))
+
+
+# # diagnose Oppositional Defiant Disorder (OD) and Conduct Disorder (CD)
+# # Dichotomous scales were summed and cutoff scores of at least 60% for OD (meet 5 of 9 potential criteria).
+# m_dat_oppdef <- P1_10DSM %>% select(
+#   FAMILY, PDSO32A, PDSO42A, PDSO52A, PDSO62A, PDSO82A, starts_with("TDSO"),
+# ) %>% select(!ends_with("12A")) %>%
+#   rename_with(~paste0("M_opp_", .), c(!FAMILY))
+# skim(m_dat_oppdef)
+#
+# m_dat_conduct <- P1_10DSM %>% select(
+#   FAMILY, starts_with("PDSC"),
+# ) %>% select(!ends_with("12")) %>%
+#   rename_with(~paste0("M_conduct_", .), c(!FAMILY))
+# skim(m_dat_conduct)
+#
+# P1_10DSM %>% group_by(SEX, GRADE) %>%
+#   summarise(mean(PDSO82A+TDSO82A>0, na.rm = T), mean(PDSO82A, na.rm = T))
+#
+# m_dat_sex <- P6_16_SEX_PREGNANCY %>% mutate(
+#   M_csex8 = CSEX8, M_csex6 = CSEX6
+# ) %>% dplyr::select(FAMILY, starts_with("M_"), starts_with("C_"))
+#
+# P6_16_SEX_PREGNANCY %>%
+#   filter(GRADE==2) %>%
+#   group_by(SEX,GROUP) %>%
+#   summarise(across(c(CSEX6,CSEX8), ~mean(., na.rm = T)))
+#
+# summary(lm(I(TV8RSK81>=9) ~ I(GROUP==1)*I(SEX==2), data = P1_12RISK[P1_12RISK$GRADE==2, ]))
+
+## new C --------------
+c_dat_childpcr <- P1_10PCR %>% dplyr::select(
+  FAMILY,C82108
+) %>%
+  rename_with(~paste0("C_childPCR_", .), c(!FAMILY))
+
+
+# c_dat_dsm <- P1_10DSM %>% select(
+#   FAMILY, PDSO12A, TDSO12A, PDSC12
+# ) %>%
+#   rename_with(~paste0("C_dsm", .), c(!FAMILY))
+
+
+## new MICE Imputation -------------------
+
+datmi_new <- list(data.frame(FAMILY=df_use$FAMILY, complete(imp_maxit100)),
+                  m_dat_childpcr,
+                  c_dat_childpcr) %>%
+  reduce(full_join, by="FAMILY")
+datmi_new <- datmi_new %>%
+  select(FAMILY, GRADE,
+         starts_with("C_"), colnames(c_dat),
+         GROUP, SEX,
+         starts_with("M_"), starts_with("Y_")) %>%
+  remove_labels()
+
+mipred_new <- quickpred(datmi_new, mincor = 0.1, exclude = "FAMILY")
+mimthd_new <- make.method(datmi_new)
+# update to _new
+imp_maxit100_new <- mice(datmi_new,
+                        m=1,
+                        method = mimthd_new,
+                        predictorMatrix = mipred_new,
+                        maxit = 100, seed = 12345)
+
+
+
+datimp1_new <- complete(imp_maxit100_new)
+
+colnames(datimp1_new)[summarise_all(datimp1_new, ~mean(is.na(.)) )>0 ]
+datimp1_new <- datimp1_new[, summarise_all(datimp1_new, ~mean(is.na(.)) )==0 ]
+
+glm(I(Y_tobacco10 >= 1) ~ I(GROUP==1) *  I(SEX==2) ,
+    data = complete(imp_maxit100_new)[datmi$GRADE==2, ] ) %>% summary()
+
+
+
+
+
+# Grade 5 only ----
+# datimp <- datimp %>% filter(GRADE == 2) %>% dplyr::select( !GRADE )
+# datimp <- datimp[complete.cases(datimp), ]
+
+datimp1_new <- datimp1_new %>% filter(GRADE == 2) %>% dplyr::select( !GRADE )
+
+
+sum(!complete.cases(datimp1_new))
+
+
+glm(I(Y_tobacco10 >= 1) ~ factor(GROUP) *  I(SEX==2) , data = datimp1_new, family="binomial") %>% summary()
+glm(I(Y_tobacco10 >= 1) ~ I(GROUP==1) *  I(SEX==2) , data = datimp1_new) %>% summary()
+
+datimp1_new %>%
+  summarise(across(c(M_childPCR_C82808, M_deviantpeers8, M_risk8), ~quantile(.)))
+
+glm(I(Y_tobacco10 >= 1) ~ I(GROUP==1) *  I(SEX==2) + I(M_childPCR_C82808 ==5), data = datimp1_new, family="gaussian") %>% summary()
+
+
+glm(I(M_childPCR_C82808>=4) ~ I(GROUP==1) *  I(SEX==2), data = datimp1_new, family="gaussian") %>% summary()
+
+
+
+
+# C selecting --------------
+
+Cselected <- datimp1_new %>% dplyr::select(
+  C_parentdrinkMV9108,
+  C_famstP11SES1, C_famstINCOME1,
+
+  C_childPCR_C82108, # new
+
+  C_riskTV8RSK11,
+  C_cbclT421DL2R,
+  C_cbclT421AG2R, C_cbclM591AG2R,
+  C_deviantpeerTDVPR12, C_deviantpeerP54DVP1,
+  C_cbclT421IN2R,
+
+  C_ipcCAAPR12, C_ipcCAAVR12, C_iptlCAAPLR11,
+  C_iptlCAAVLR11,
+
+  C_schladjustTV8SA11,
+  C_rejectedTCREJ12,
+  C_welikedTB4102, C_wmscaleTB4PP12, C_wmscaleTB4TP12,
+  C_socialskillC82SS11,
+
+  C_homantisocPASOD11,
+  C_pcrelationP85PC12, C_pdM57PD11, C_disciplineP85APD11,
+  C_parentinvoleP85PI11,
+  C_academicT42AA11
+)
+
+
+
+colnames(c_dat)[!colnames(c_dat)%in%colnames(Cselected)] # collinear nonselection
+
+
+# Data in ----------------
+# load("example/Untitled-lift.RData")
+
+# for mediated moderation with two mediators
+# Total summed risk screening scores of 0-3 are designated low risk, while 4-8 are moderate risk, and 9-21 are high risk
+# datimp1_use <- datimp1_new
+datimp1_use <- datimp1
+
+
+data_in <- data.frame(
+  Y = as.numeric(datimp1_use$Y_tobacco10 >= 1),
+  Mdat = data.frame(
+    # M2_chldposfamily8 = -1*datimp1_use$M_chldposfamily8,
+    M1_PCRP85PC82 = datimp1_use$M_PCRP85PC82,
+    M2_deviantpeers8 = datimp1_use$M_deviantpeers8
+    # M1_risk8 = 1*(datimp1_use$M_risk8 <= 3),
+    # M2_pcr8 = 1*(datimp1_use$M_childPCR_C82808 > 4) # somewhat (4) or very (5) accurate
+    # M_one = (datimp1_use$M_risk8),
+    # M_two = (datimp1_use$M_childPCR_C82808)
+    # M1_childPCR8 = datimp1_use$M_childPCR_C82808,
+    # M1_parentsPCR8 = datimp1_use$M_PCRP85PC82,
+    # M1_risk8 = datimp1_use$M_risk8 ,
+    # M2_deviantpeers8 = datimp1_use$M_deviantpeers8
+    ),
+  tt = as.numeric(datimp1_use$GROUP == 1), # 1 for intervention condition
+  R = as.numeric(datimp1_use$SEX == 1), # 1 for male , 2 for female
+  Cdat = dplyr::select(datimp1_use,
+                       !c(GROUP, SEX) & (!starts_with("Y_")) & (!starts_with("M_")) & (!starts_with("X_")) & any_of(colnames(Cselected))
+  )
+)
+
+skim(data_in, Mdat.M2_pcr8, Mdat.M1_risk8)
+
+
+
+# --------------------------------------
+data_in$ID <- 1:nrow(data_in)
+
+Rname <- grep("^R", colnames(data_in), value = T)
+ttname <- grep("^tt", colnames(data_in), value = T)
+Yname <- grep("^Y", colnames(data_in), value = T)
+Cnames0 <- grep("^C", colnames(data_in), value = T)
+Cnames <- Cnames0[-c(25:27, 11:14,9)]
+Cnames
+Znames <- grep("Mdat.M1", colnames(data_in), value = T)
+Mnames <- grep("Mdat.M2", colnames(data_in), value = T)
+# Mediators <- grep("^M", colnames(data_in), value = T)
+Mediators <- list(M1=Znames, M2=Mnames)
+Mediators
+# already standardized the covariates
+data_in[, Cnames] <- scale(data_in[, Cnames], scale = TRUE)
+
+
+# Estimation -----
+
+# r1 for male ------------
+
+table(data_in$R)
+trt_dat %>% filter(GRADE==2) %>% group_by(SEX) %>% summarise( n() )
+
+
+# estimators -----------
+methds <- data.frame(expand.grid(
+  fity.interact = c(FALSE),
+  fitm.interact = c(FALSE),
+  Fit = c("mlr")
+))
+
+one.jj <- function (jj = 1) {
+  Fit <- as.character(methds$Fit[jj])
+  fity.interact <- methds$fity.interact[jj]
+  fitm.interact <- methds$fitm.interact[jj]
+  Yfamily <- ifelse(length(unique(data_in[[Yname]])) > 2, "gaussian", "binomial")
+  Mfamily <- ifelse(max( map_dbl(Mediators, ~length(unique(data_in[[.]]))) ) > 2, "gaussian", "binomial")
+
+  max( map_dbl(Mediators, ~length(unique(data_in[[.]]))) ) > 2
+  if (Fit == "glm") {
+    learners <- learners_a <- learners_m <- learners_y <- c("SL.glm")
+    num_folds <- 1
+  }
+  if (Fit == "mlr") {
+    # learners <- c("SL.ranger", "SL.glm", "SL.glm.interaction", "SL.xgboost")
+    learners <- c("SL.glm", "SL.glm.interaction", "SL.ranger", "SL.nnet")
+    learners <- c("SL.glm", "SL.nnet")
+    learners <- c("SL.glm", "SL.mean", "SL.ranger", "SL.nnet")
+    learners_h <- learners
+    learners_mu <- learners
+    num_folds <- 4
+  }
+  set.seed(12345)
+  hout1 <- h.MedMod(
+    data_in,
+    Yname,
+    Rname,
+    ttname,
+    Mediators,
+    Cnames,
+    learners,
+    learners_h,
+    learners_mu,
+    Yfamily,
+    Mfamily,
+    fity.interact = FALSE,
+    fitm.interact = FALSE,
+    num_folds,
+    TotMod_dr = FALSE,
+    full.sample = TRUE,
+    no_tt = FALSE,
+    out_eif = TRUE
+  )
+  lift_estimates1 <- as.data.frame(hout1[["estimates"]]) %>%
+    rownames_to_column(var = "estimand") %>% filter(str_detect(estimand, "Mod") ) %>% select(!contains("reg") & !contains("rmpw"))
+
+  ## saving results ------
+  savelist <- list(learners=learners,learners_h=learners_h,learners_mu=learners_mu,
+                   data_in=data_in, datimp1_use=datimp1_use, imp_maxit100=imp_maxit100, df_use=df_use,
+                   Mediators=Mediators,hout1=hout1, Cnames=Cnames, num_folds=num_folds)
+  here::here()
+  save(savelist, file = glue("lift_results.RData"))
+
+  # set.seed(12345)
+  # binary_out_noint <- MedMod(
+  #   data_in,
+  #   Yname,
+  #   Rname,
+  #   ttname,
+  #   Mediators,
+  #   Cnames,
+  #   learners,
+  #   Yfamily,
+  #   fity.interact = F,
+  #   fitm.interact = F,
+  #   num_folds,
+  #   TotMod_dr = F
+  # )
+
+  # ## MultiM Estimation ------
+  # multi_hout <- multiM(
+  #   data_in,
+  #   Yname, Rname, ttname,
+  #   Mediators,
+  #   Cnames,
+  #   learners,
+  #   learners_h,
+  #   learners_mu,
+  #   Yfamily,
+  #   Mfamily,
+  #   fity.interact = F,
+  #   fitm.interact = F,
+  #   num_folds,
+  #   Tot_dr = FALSE,
+  #   full.sample = TRUE,
+  #   no_tt = TRUE
+  # )
+
+  # # the mediators jointly ----
+  # devtools::install_github(repo = "xliu12/meD", subdir = "pkg/meD", build_manual = TRUE)
+  # # devtools::load_all("../R_mediated/meD/pkg/meD")
+  # out_meD <- meDreD(data_in = data_in, Mnames = Mediators, Cnames = Cnames, nuisance_estimation = learners, Yfamily = Yfamily, estimator = "onestep", num_folds = num_folds)
+
+  estimates <- hout1
+
+  res <- data.frame(methds[jj, , drop=F],
+                    estimand = names(true_values),
+                    # true_val = unlist(true_values),
+                    estimates,
+                    row.names = NULL)
+
+  return(res)
+}
+# one_boot <- res
+oneboot <- lapply(1:nrow(methds), one.jj)
+one_boot <- do.call(rbind, oneboot)
+
+
+
+
+
+
+
+
+
+# old ---------------
+lin.crossfit_Rmale <- crossfit.onestep(
+  cv_folds = 0L,
+  data_in = data_in,
+  Cnames = Cnames,
+  Mnames = Mnames,
+  # Xnames = Xnames,
+  Fit = "linear",
+  Yfamily = "binomial"
+)
+lin.crossfit_Rmale$estimates
+lin.crossfit_Rmale$z_intervals
+
+
+
+mlr.crossfit_Rmale <- crossfit.onestep(
+  cv_folds = 5,
+  data_in = data_in,
+  Cnames = Cnames,
+  Mnames = Mnames,
+  Fit = "mlr",
+  Yfamily = "binomial"
+)
+# SL_user <- c("SL.glm", "SL.xgboost", "SL.ranger")
+# SL_user.vfit <- c("SL.glm.scaledY", "SL.xgboost", "SL.ranger")
+mlr.crossfit_Rmale$estimates
+mlr.crossfit_Rmale$z_intervals
+
+
+
+# tmle_Rmale_Mrisk8dvp8
+mlr.tmle_Rmale <- tmle.medMO(
+  crossfit_onestep = mlr.crossfit_Rmale,
+  data_in = data_in,
+  Cnames = Cnames,
+  # Xnames = Xnames,
+  Mnames = Mnames
+)
+
+mlr.tmle_Rmale$tml_estimates
+mlr.tmle_Rmale$tml_intervals
+
+
+
+
+# Bootstrap ---------------------
+
+one.boot <- function(b) {
+  boo <- sample(1:nrow(data_in), nrow(data_in), replace = TRUE)
+  boo_data_in <- data_in[boo, ]
+
+  # one-step
+  boo_crossfit_Rmale <- crossfit.onestep(
+    cv_folds = 5,
+    # bootstrap data
+    data_in = boo_data_in,
+    Cnames = Cnames,
+    Mnames = Mnames,
+    Fit = "mlr",
+    Yfamily = "binomial"
+  )
+
+  boo_crossfit <- boo_crossfit_Rmale$estimates
+
+  # tml
+  boo_tmle_Rmale <- tmle.medMO(
+    crossfit_onestep = boo_crossfit_Rmale,
+    data_in = boo_data_in,
+    Cnames = Cnames,
+    Mnames = Mnames
+  )
+
+  boo_tmle <- boo_tmle_Rmale$tml_estimates
+
+  boo_out <- data.frame(
+    effect = names(boo_crossfit),
+    boo_crossfit=boo_crossfit,
+    boo_tmle=boo_tmle)
+
+  return(boo_out)
+}
+
+
+set.seed(12345)
+boot_res <- lapply(1:1000, one.boot)
+
+
+
+
+
+
+save.image("~/Library/CloudStorage/Box-Box/Labs/Mediated/R_mediated/lift1229.RData")
+
+# (haven't yet) r1 for female ------------------
+data_in$R <- as.numeric(datimp$SEX == 2) # 1 for male , 2 for female
+table(data_in$R)
+trt_dat %>% filter(GRADE==2) %>% group_by(SEX) %>% summarise( n() )
+
+# update the interactions
+data_in[, "ttR"] <- data_in$tt * data_in$R
+data_in[, RMnames] <- data_in$R*data_in[, Mnames]
+data_in[, ttRMnames] <- data_in$ttR * data_in[, Mnames]
+
+
+colnames(data_in)
+
+
+lin.crossfit_Rfe <- crossfit.onestep(
+  cv_folds = 5L,
+  data_in = data_in,
+  Cnames = Cnames,
+  Mnames = Mnames,
+  # Xnames = Xnames,
+  Fit = "linear",
+  Yfamily = "binomial"
+)
+lin.crossfit_Rfe$estimates
+lin.crossfit_Rfe$z_intervals
+# crossfit_Rfe_Mdvp8
+
+
+
+mlr.crossfit_Rfe <- crossfit.onestep(
+  cv_folds = 5L,
+  data_in = data_in,
+  Cnames = Cnames,
+  Mnames = Mnames,
+  # Xnames = Xnames,
+  Fit = "mlr",
+  Yfamily = "binomial"
+)
+mlr.crossfit_Rfe$estimates
+mlr.crossfit_Rfe$z_intervals
+
+
+
+crossfit_Rfe_Mrisk8dvp8 <- crossfit.onestep(
+  cv_folds = 5L,
+  data_in = data_in,
+  Cnames = Cnames,
+  Mnames = Mnames,
+  # Xnames = Xnames,
+  Yfamily = "binomial" # "gaussian" #  "zinflasso" # "zeroinfl" # "zeroinfl", ##c(familyzero = "binomial", familypositive = "gaussian")
+)
+
+crossfit_out <- crossfit_Rfe_Mrisk8dvp8 # crossfit_Rfe_Mdvp8
+crossfit_out$estimates
+crossfit_out$z_intervals
+
+tmle_Rfe_Mdvp8
+
+tmle_Rfe_Mrisk8dvp8 <- tmle.medMO(
+  crossfit_onestep = crossfit_Rfe_Mrisk8dvp8,
+  data_in = data_in,
+  Cnames = Cnames,
+  # Xnames = Xnames,
+  Mnames = Mnames
+)
+
+tmle_out <- tmle_Rfe_Mrisk8dvp8 # tmle_Rfe_Mdvp8 # tmle_Rfe_Mdvp456
+tmle_out$tml_estimates
+tmle_out$tml_intervals
+
+
+

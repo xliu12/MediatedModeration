@@ -1,0 +1,84 @@
+library(tidyverse)
+library(mice)
+library(mitml)
+# library(miceadds)
+library(fastDummies)
+library(missForest)
+library(haven)
+library(skimr)
+library(labelled)
+library(purrr)
+library(origami)
+library(mvtnorm)
+library(parallel)
+library(tidyverse)
+library(glue)
+library(SuperLearner)
+library(earth)
+library(devtools)
+
+options(dplyr.print_max = 100, pillar.print_max = 50, dplyr.width = Inf)
+
+load_all()
+
+# data from /Users/xl9663/Library/CloudStorage/Box-Box/Labs/Mediated/R_medZ/example/lift_MZ.R
+load("/Users/xl9663/Library/CloudStorage/Box-Box/Labs/Mediated/R_medZ/example/lift_results.RData")
+
+savelist$datimp1_use %>% view
+savelist$datimp1_use$SEX %>% table() # 1 = Male 2 = Female
+savelist$datimp1_use %>% count(GROUP)
+savelist$df_use %>% filter(GRADE==2) %>% count(GROUP)
+
+data <- savelist$datimp1_use %>% 
+  mutate(Male = if_else(SEX == 1, 1, 0),
+         Intervention = 1*(GROUP==1))
+# dput(sub("^Cdat\\.", "", savelist$Cnames))
+
+# run -------------
+set.seed(12345)
+out <- MedMod::MedMod(
+  data = data, # data containing all variables
+  outcome = "Y_tobacco10", # name of outcome
+  mediators = c("M_PCRP85PC82", "M_deviantpeers8"), # name of mediators. When more than two mediators are included, the first mediator is designated as M1, and all remaining mediators are collectively treated as M2.
+  treatment = "Intervention", # name of treatment variable
+  subgroup = "Male", # name of moderator subgroup variable
+  covariates = c("C_academicT42AA11", "C_cbclT421DL2R", "C_cbclT421AG2R", "C_cbclM591AG2R", 
+                 "C_cbclT421IN2R", "C_deviantpeerTDVPR12", "C_deviantpeerP54DVP1", 
+                 "C_famstP11SES1", "C_homantisocPASOD11", "C_pcrelationP85PC12", 
+                 "C_pdM57PD11", "C_disciplineP85APD11", "C_parentdrinkMV9108", 
+                 "C_parentinvoleP85PI11", "C_rejectedTCREJ12", "C_riskTV8RSK11", 
+                 "C_schladjustTV8SA11", "C_socialskillC82SS11", "C_welikedTB4102"
+  ), # names of baseline covariates
+  learners = c("SL.glm", "SL.mean", "SL.ranger", "SL.nnet"),
+  # methods from the SuperLearner package to include in the super learner ensemble (intercept-only model, generalized linear model, random forest, neural network).
+  # To see all available methods, run: SuperLearner::listWrappers()
+  num_folds = 4, # number of folds for cross-fitting
+  ci.level = 0.95 # default: 95% confidence interval
+)
+
+set.seed(12345)
+out <- h.MedMod(
+  data_in = data,
+  Yname = "Y_tobacco10",
+  M1names = "M_PCRP85PC82", 
+  M2names = "M_deviantpeers8", 
+  ttname = "GROUP",
+  Rname = "SEX",
+  Cnames = c("C_deviantpeerTDVPR12",   
+             "C_pcrelationP85PC12", #"C_deviantpeerP54DVP1", #"C_dispinappr.pint1",#
+             "C_pdM57PD11", "C_famstINCOME1", "C_famstMEDUC1", "C_cbclT421IN2R", "C_cbclM591IN2R", "C_cbclM591AG2R", "C_cbclT421AG2R"),
+  learners = c("SL.glm", "SL.ranger", "SL.nnet"),
+  learners_h = c("SL.glm", "SL.ranger", "SL.nnet"),
+  learners_mu = c("SL.glm", "SL.ranger", "SL.nnet"),
+  num_folds = 10,
+  Yfamily = "binomial",
+  fity.interact = TRUE,
+  fitm.interact = TRUE,
+  TotMod_dr = TRUE,
+  out_eif = TRUE
+)
+out$estimates %>% view
+
+
+# save data --------------
+save.image("R1_LIFT_Methods_Demo.RData")

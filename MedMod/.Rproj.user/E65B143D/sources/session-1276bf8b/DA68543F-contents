@@ -8,12 +8,10 @@
 #' @param covariates a character vector of the names of the columns in "data" that correspond to pretreatment (i.e., baseline) covariates (C).
 #' @param learners a character vector specifying the methods for estimating the nuisance models. Currently supported options include the list of methods included in the "SuperLearner" package (<https://cran.r-project.org/package=SuperLearner>), which can be listed via function listWrappers() of the "SuperLearner" package.
 #' @param num_folds the number of folds used for the cross-fitting procedure.
-#' @param fity.interact logical; if \code{TRUE}, the outcome nuisance models include interactions among the treatment, subgroup, and the mediators. Defaults to \code{FALSE}.
-#' @param fitm.interact logical; if \code{TRUE}, the mediator nuisance models include interactions among the treatment, subgroup, and the mediators. Defaults to \code{FALSE}.
 #'
 #'
 #'
-#' @return A data frame containing the results for the mediated moderation estimands and the expected potential outcomes in the estimands. The results include the estimates, standard error estimates, and 0.95 confidence intervals. The returned data frame also carries an attribute \code{"probabilities"}: a named list of the cross-fitted treatment/subgroup probability estimates (one row per observation) -- \code{joint_tr_c} = p(T, R | C), \code{subgroup_r_c} = p(R | C), and \code{treatment_t_rc} = p(T | R, C). Retrieve it with \code{\link{MedMod_probabilities}}. It also carries an attribute \code{"fit_inputs"}: the data, variable-role map, cross-fitting folds, learners, and mediator family needed to re-fit the mediator-side nuisances on demand (used by \code{\link{MedMod_mediator_positivity}}). Retrieve it with \code{\link{MedMod_fit_inputs}}.
+#' @return A data frame containing the results for the mediated moderation estimands and the expected potential outcomes in the estimands. The results include the estimates, standard error estimates, and 0.95 confidence intervals.
 #'
 #' @examples
 #'
@@ -42,8 +40,6 @@
 #'   # methods from the SuperLearner package to include in the super learner ensemble (intercept-only model, generalized linear model, random forest, neural network).
 #'   # To see all available methods, run: SuperLearner::listWrappers()
 #'   num_folds = 4, # number of folds for cross-fitting
-#'   fity.interact = TRUE, # include treatment/subgroup/mediator interactions in the outcome nuisance models
-#'   fitm.interact = TRUE, # include treatment/subgroup/mediator interactions in the mediator nuisance models
 #'   ci.level = 0.95 # default: 95% confidence interval
 #' )
 #' # Extract results for mediated moderation
@@ -69,8 +65,6 @@ MedMod <- function(
     learners_h = NULL,
     learners_mu = NULL,
     num_folds = 5,
-    fity.interact = FALSE,
-    fitm.interact = FALSE,
     ci.level = 0.95
 ) {
 
@@ -177,8 +171,8 @@ MedMod <- function(
   if (Mfamily=="b") {
     out <- b.MedMod(
       medmod_data = medmod_data,
-      fity.interact = fity.interact,
-      fitm.interact = fitm.interact,
+      fity.interact = TRUE,
+      fitm.interact = TRUE,
       TotMod_dr = FALSE
     )
   }
@@ -187,8 +181,8 @@ MedMod <- function(
 
     out <- h.MedMod(
       medmod_data = medmod_data,
-      fity.interact = fity.interact,
-      fitm.interact = fitm.interact,
+      fity.interact = TRUE,
+      fitm.interact = TRUE,
       TotMod_dr = FALSE,
       full.sample = TRUE
     )
@@ -228,70 +222,6 @@ MedMod <- function(
            `CI.lower`=ci1_multi, `CI.upper`=ci2_multi) %>%
     select(!c(est_rmpw,est_reg))
 
-  # Attach the cross-fitted treatment/subgroup probability estimates (computed in
-  # h.MedMod / b.MedMod and brought into scope by the list2env() above) as an
-  # attribute, so the returned object stays a plain data.frame. Retrieve via
-  # MedMod_probabilities().
-  attr(out$estimates, "probabilities") <- list(
-    joint_tr_c     = tr_c,   # p(T, R | C)  -- joint treatment x subgroup propensity
-    subgroup_r_c   = r_c,    # p(R | C)     -- subgroup probability
-    treatment_t_rc = t_rc    # p(T | R, C)  -- treatment probability
-  )
-
-  # Attach the ingredients needed to re-fit the probabilities on demand
-  # (with bounded = FALSE) for the positivity diagnostic. These re-fits must
-  # use the same cross-fitting folds as the original estimator, which are random per
-  # call and cannot be reconstructed from the raw data, and hence we carry the fitted
-  # folds (and the rest of the fit context) here. Retrieve via MedMod_fit_inputs() and
-  # consume in MedMod_overlap() and MedMod_mediator_positivity().
-  attr(out$estimates, "fit_inputs") <- list(
-    data_in       = data_in,
-    varnames      = varnames,
-    folds         = folds,
-    learners      = learners,
-    fitm.interact = fitm.interact,
-    Mfamily       = Mfamily
-  )
-
   # out
-  out$estimates
-}
-
-
-#' Extract estimated treatment and subgroup probabilities from a MedMod fit
-#'
-#' @param object the object returned by \code{\link{MedMod}}.
-#'
-#' @return A named list of cross-fitted probability matrices, each with one row per
-#'   observation: \code{joint_tr_c} = p(T, R | C), the joint treatment-by-subgroup
-#'   propensity; \code{subgroup_r_c} = p(R | C), the subgroup probability; and
-#'   \code{treatment_t_rc} = p(T | R, C), the treatment probability. Returns
-#'   \code{NULL} if no probabilities are attached.
-#'
-#' @export
-MedMod_probabilities <- function(object) {
-  attr(object, "probabilities")
-}
-
-
-#' Extract the fit context needed to re-fit MedMod nuisances on demand
-#'
-#' Returns the bundle of inputs attached by \code{\link{MedMod}} so that downstream
-#' diagnostics can re-fit the mediator-side nuisance models on the original data and the
-#' original cross-fitting folds. This is used by \code{\link{MedMod_mediator_positivity}},
-#' which re-fits those nuisances with \code{bounded = FALSE} so that probability truncation
-#' cannot hide positivity violations.
-#'
-#' @param object the object returned by \code{\link{MedMod}}.
-#'
-#' @return A named list with elements \code{data_in} (the model-frame data, including the
-#'   interaction columns and the \code{ID} column), \code{varnames} (the variable-role map),
-#'   \code{folds} (the cross-fitting folds), \code{learners} (the SuperLearner library),
-#'   \code{fitm.interact} (whether the mediator nuisance models include interactions), and
-#'   \code{Mfamily} (\code{"b"} for all-binary mediators, \code{"h"} when any mediator is
-#'   continuous). Returns \code{NULL} if no fit inputs are attached.
-#'
-#' @export
-MedMod_fit_inputs <- function(object) {
-  attr(object, "fit_inputs")
+  out$estimates, tr_c
 }
